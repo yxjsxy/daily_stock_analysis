@@ -950,10 +950,7 @@ class AkshareFetcher(BaseFetcher):
 
     def get_stock_name(self, stock_code: str) -> str:
         """
-        单独获取股票名称（不需要完整的实时行情）
-        
-        优先从缓存的实时行情数据中获取，如果缓存为空则尝试获取一次。
-        这个方法专门用于获取股票名称，即使实时行情部分失败也能返回名称。
+        单独获取股票名称（优先新浪接口，更稳定）
         
         Args:
             stock_code: 股票代码（6位数字）
@@ -968,61 +965,96 @@ class AkshareFetcher(BaseFetcher):
             is_etf = _is_etf_code(stock_code)
             is_hk = _is_hk_code(stock_code)
             
-            current_time = time.time()
-            
             if is_etf:
-                # ETF：使用 ETF 缓存
-                cache = _etf_realtime_cache
-                fetch_func = ak.fund_etf_spot_em
-                name_col = '名称'
-                code_col = '代码'
+                # ETF：使用东方财富接口
+                return self._get_etf_name(stock_code)
             elif is_hk:
-                # 港股：暂不支持名称缓存，直接尝试获取
-                try:
-                    self._set_random_user_agent()
-                    self._enforce_rate_limit()
-                    df = ak.stock_hk_spot_em()
-                    if df is not None and not df.empty:
-                        row = df[df['代码'] == stock_code]
-                        if not row.empty:
-                            return str(row.iloc[0].get('名称', ''))
-                except Exception as e:
-                    logger.debug(f"获取港股 {stock_code} 名称失败: {e}")
-                return ''
+                # 港股
+                return self._get_hk_stock_name(stock_code)
             else:
-                # A股：使用 A股缓存
-                cache = _realtime_cache
-                fetch_func = ak.stock_zh_a_spot_em
-                name_col = '名称'
-                code_col = '代码'
-            
-            # 检查缓存是否有效
-            if cache['data'] is not None and current_time - cache['timestamp'] < cache['ttl']:
-                df = cache['data']
-            else:
-                # 缓存无效，尝试获取数据
-                try:
-                    self._set_random_user_agent()
-                    self._enforce_rate_limit()
-                    df = fetch_func()
-                    if df is not None and not df.empty:
-                        cache['data'] = df
-                        cache['timestamp'] = current_time
-                except Exception as e:
-                    logger.debug(f"获取股票列表失败: {e}")
-                    df = cache.get('data')  # 尝试使用旧缓存
-            
-            # 从数据中查找股票名称
-            if df is not None and not df.empty:
-                row = df[df[code_col] == stock_code]
-                if not row.empty:
-                    return str(row.iloc[0].get(name_col, ''))
-            
-            return ''
+                # A股：优先新浪接口
+                return self._get_a_stock_name_sina(stock_code)
             
         except Exception as e:
             logger.debug(f"获取 {stock_code} 股票名称失败: {e}")
             return ''
+
+    def _get_a_stock_name_sina(self, stock_code: str) -> str:
+        """使用新浪接口获取A股股票名称（更稳定）"""
+        import akshare as ak
+        
+        try:
+            # 方案1: 优先使用新浪接口
+            self._set_random_user_agent()
+            self._enforce_rate_limit()
+            df = ak.stock_zh_a_spot()
+            
+            if df is not None and not df.empty:
+                # 新浪接口列名：代码、名称
+                code_col = '代码' if '代码' in df.columns else 'code'
+                name_col = '名称' if '名称' in df.columns else 'name'
+                
+                row = df[df[code_col] == stock_code]
+                if not row.empty:
+                    name = str(row.iloc[0].get(name_col, ''))
+                    if name:
+                        logger.debug(f"[新浪] 获取股票名称成功: {stock_code} -> {name}")
+                        return name
+        except Exception as e:
+            logger.debug(f"[新浪] 获取股票名称失败: {e}")
+        
+        # 方案2: 回退到东方财富缓存
+        try:
+            if _realtime_cache['data'] is not None and not _realtime_cache['data'].empty:
+                df = _realtime_cache['data']
+                row = df[df['代码'] == stock_code]
+                if not row.empty:
+                    return str(row.iloc[0].get('名称', ''))
+        except Exception as e:
+            logger.debug(f"[东方财富缓存] 获取股票名称失败: {e}")
+        
+        return ''
+
+    def _get_etf_name(self, stock_code: str) -> str:
+        """获取ETF名称"""
+        import akshare as ak
+        
+        try:
+            if _etf_realtime_cache['data'] is not None and not _etf_realtime_cache['data'].empty:
+                df = _etf_realtime_cache['data']
+            else:
+                self._set_random_user_agent()
+                self._enforce_rate_limit()
+                df = ak.fund_etf_spot_em()
+                if df is not None and not df.empty:
+                    _etf_realtime_cache['data'] = df
+                    _etf_realtime_cache['timestamp'] = time.time()
+            
+            if df is not None and not df.empty:
+                row = df[df['代码'] == stock_code]
+                if not row.empty:
+                    return str(row.iloc[0].get('名称', ''))
+        except Exception as e:
+            logger.debug(f"获取ETF名称失败: {e}")
+        
+        return ''
+
+    def _get_hk_stock_name(self, stock_code: str) -> str:
+        """获取港股名称"""
+        import akshare as ak
+        
+        try:
+            self._set_random_user_agent()
+            self._enforce_rate_limit()
+            df = ak.stock_hk_spot_em()
+            if df is not None and not df.empty:
+                row = df[df['代码'] == stock_code]
+                if not row.empty:
+                    return str(row.iloc[0].get('名称', ''))
+        except Exception as e:
+            logger.debug(f"获取港股名称失败: {e}")
+        
+        return ''
 
 
 if __name__ == "__main__":
