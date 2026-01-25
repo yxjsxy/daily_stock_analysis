@@ -50,6 +50,7 @@ from notification import NotificationService, NotificationChannel, send_daily_re
 from search_service import SearchService, SearchResponse
 from enums import ReportType
 from stock_analyzer import StockTrendAnalyzer, TrendAnalysisResult
+from chan_analyzer import ChanAnalyzer, ChanAnalysisResult
 from market_analyzer import MarketAnalyzer
 
 # 配置日志格式
@@ -152,6 +153,7 @@ class StockAnalysisPipeline:
         self.fetcher_manager = DataFetcherManager()
         self.akshare_fetcher = AkshareFetcher()  # 用于获取增强数据（量比、筹码等）
         self.trend_analyzer = StockTrendAnalyzer()  # 趋势分析器
+        self.chan_analyzer = ChanAnalyzer()  # 缠论分析器
         self.analyzer = GeminiAnalyzer()
         self.notifier = NotificationService()
         
@@ -164,6 +166,7 @@ class StockAnalysisPipeline:
         
         logger.info(f"调度器初始化完成，最大并发数: {self.max_workers}")
         logger.info("已启用趋势分析器 (MA5>MA10>MA20 多头判断)")
+        logger.info("已启用缠论分析器 (分型/笔/中枢/背驰/买卖点)")
         if self.search_service.is_available:
             logger.info("搜索服务已启用 (Tavily/SerpAPI)")
         else:
@@ -266,6 +269,7 @@ class StockAnalysisPipeline:
             
             # Step 3: 趋势分析（基于交易理念）
             trend_result: Optional[TrendAnalysisResult] = None
+            chan_result: Optional[ChanAnalysisResult] = None
             try:
                 # 获取历史数据进行趋势分析
                 context = self.db.get_analysis_context(code)
@@ -277,6 +281,14 @@ class StockAnalysisPipeline:
                         trend_result = self.trend_analyzer.analyze(df, code)
                         logger.info(f"[{code}] 趋势分析: {trend_result.trend_status.value}, "
                                   f"买入信号={trend_result.buy_signal.value}, 评分={trend_result.signal_score}")
+                        
+                        # Step 3.5: 缠论分析
+                        try:
+                            chan_result = self.chan_analyzer.analyze(df, code)
+                            logger.info(f"[{code}] 缠论分析: {chan_result.trend_type.value}, "
+                                      f"买卖点={chan_result.buy_sell_point.value}, 评分={chan_result.chan_score}")
+                        except Exception as chan_e:
+                            logger.warning(f"[{code}] 缠论分析失败: {chan_e}")
             except Exception as e:
                 logger.warning(f"[{code}] 趋势分析失败: {e}")
             
@@ -310,12 +322,13 @@ class StockAnalysisPipeline:
                 logger.warning(f"[{code}] 无法获取分析上下文，跳过分析")
                 return None
             
-            # Step 6: 增强上下文数据（添加实时行情、筹码、趋势分析结果、股票名称）
+            # Step 6: 增强上下文数据（添加实时行情、筹码、趋势分析结果、缠论分析、股票名称）
             enhanced_context = self._enhance_context(
                 context, 
                 realtime_quote, 
                 chip_data, 
                 trend_result,
+                chan_result,  # 传入缠论分析结果
                 stock_name  # 传入股票名称
             )
             
@@ -335,18 +348,20 @@ class StockAnalysisPipeline:
         realtime_quote: Optional[RealtimeQuote],
         chip_data: Optional[ChipDistribution],
         trend_result: Optional[TrendAnalysisResult],
+        chan_result: Optional[ChanAnalysisResult] = None,
         stock_name: str = ""
     ) -> Dict[str, Any]:
         """
         增强分析上下文
         
-        将实时行情、筹码分布、趋势分析结果、股票名称添加到上下文中
+        将实时行情、筹码分布、趋势分析结果、缠论分析结果、股票名称添加到上下文中
         
         Args:
             context: 原始上下文
             realtime_quote: 实时行情数据
             chip_data: 筹码分布数据
             trend_result: 趋势分析结果
+            chan_result: 缠论分析结果
             stock_name: 股票名称
             
         Returns:
@@ -400,6 +415,27 @@ class StockAnalysisPipeline:
                 'signal_score': trend_result.signal_score,
                 'signal_reasons': trend_result.signal_reasons,
                 'risk_factors': trend_result.risk_factors,
+            }
+        
+        # 添加缠论分析结果
+        if chan_result:
+            enhanced['chan_analysis'] = {
+                'trend_type': chan_result.trend_type.value,
+                'trend_summary': chan_result.trend_summary,
+                'fenxing_summary': chan_result.fenxing_summary,
+                'bi_summary': chan_result.bi_summary,
+                'current_bi_direction': chan_result.current_bi_direction,
+                'zhongshu_summary': chan_result.zhongshu_summary,
+                'price_position': chan_result.price_position,
+                'beichi_type': chan_result.beichi_type.value,
+                'beichi_summary': chan_result.beichi_summary,
+                'macd_divergence': chan_result.macd_divergence,
+                'buy_sell_point': chan_result.buy_sell_point.value,
+                'buy_sell_reason': chan_result.buy_sell_reason,
+                'chan_score': chan_result.chan_score,
+                'operation_suggestion': chan_result.operation_suggestion,
+                'key_levels': chan_result.key_levels,
+                'analysis_summary': chan_result.analysis_summary,
             }
         
         return enhanced

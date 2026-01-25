@@ -609,6 +609,21 @@ class NotificationService:
             
             # 舆情情报已移至顶部显示
             
+            # ========== 缠论分析 ==========
+            chan_data = dashboard.get('chan_analysis', {}) if dashboard else {}
+            if chan_data:
+                report_lines.extend([
+                    "### 📐 缠论分析",
+                    "",
+                    f"**趋势类型**: {chan_data.get('trend_type', 'N/A')} | **买卖点**: {chan_data.get('buy_sell_point', '无买卖点')} | **背驰**: {chan_data.get('beichi_type', '无背驰')}",
+                    "",
+                    f"**中枢位置**: {chan_data.get('zhongshu_position', 'N/A')} | **缠论评分**: {chan_data.get('chan_score', 'N/A')}/100",
+                    "",
+                ])
+                if chan_data.get('chan_suggestion'):
+                    report_lines.append(f"💡 *{chan_data['chan_suggestion']}*")
+                    report_lines.append("")
+            
             # ========== 作战计划 ==========
             battle = dashboard.get('battle_plan', {}) if dashboard else {}
             if battle:
@@ -815,6 +830,25 @@ class NotificationService:
                 if has_pos:
                     lines.append(f"💼 持仓者: {has_pos[:50]}")
                 lines.append("")
+            
+            # 缠论信号（精简版）
+            chan_data = dashboard.get('chan_analysis', {}) if dashboard else {}
+            if chan_data:
+                buy_sell = chan_data.get('buy_sell_point', '')
+                beichi = chan_data.get('beichi_type', '')
+                chan_score = chan_data.get('chan_score', '')
+                
+                chan_info = []
+                if buy_sell and buy_sell != '无买卖点':
+                    chan_info.append(f"📐{buy_sell}")
+                if beichi and beichi != '无背驰':
+                    chan_info.append(f"⚡{beichi}")
+                if chan_score:
+                    chan_info.append(f"评分:{chan_score}")
+                
+                if chan_info:
+                    lines.append(f"**缠论**: {' | '.join(chan_info)}")
+                    lines.append("")
             
             # 检查清单简化版
             checklist = battle.get('action_checklist', []) if battle else []
@@ -1442,6 +1476,7 @@ class NotificationService:
     
     def _send_feishu_message(self, content: str) -> bool:
         """发送单条飞书消息（优先使用 Markdown 卡片）"""
+        
         def _post_payload(payload: Dict[str, Any]) -> bool:
             logger.debug(f"飞书请求 URL: {self._feishu_url}")
             logger.debug(f"飞书请求 payload 长度: {len(content)} 字符")
@@ -1471,7 +1506,7 @@ class NotificationService:
                 logger.error(f"飞书请求失败: HTTP {response.status_code}")
                 logger.error(f"响应内容: {response.text}")
                 return False
-
+        
         # 1) 优先使用交互卡片（支持 Markdown 渲染）
         card_payload = {
             "msg_type": "interactive",
@@ -1487,17 +1522,17 @@ class NotificationService:
                     {
                         "tag": "div",
                         "text": {
-                            "tag": "lark_md",
+                            "tag": "markdown",
                             "content": content
                         }
                     }
                 ]
             }
         }
-
+    
         if _post_payload(card_payload):
             return True
-
+        
         # 2) 回退为普通文本消息
         text_payload = {
             "msg_type": "text",
