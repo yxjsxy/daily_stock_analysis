@@ -46,7 +46,8 @@ from storage import get_db, DatabaseManager
 from data_provider import DataFetcherManager
 from data_provider.akshare_fetcher import AkshareFetcher, RealtimeQuote, ChipDistribution
 from data_provider.tushare_fetcher import TushareFetcher, get_stock_name_from_tushare
-from data_provider.baostock_fetcher import get_stock_name_from_baostock
+# Baostock 在 GitHub Actions 中不稳定，已禁用
+# from data_provider.baostock_fetcher import get_stock_name_from_baostock
 from analyzer import GeminiAnalyzer, AnalysisResult, STOCK_NAME_MAP
 from notification import NotificationService, NotificationChannel, send_daily_report
 from search_service import SearchService, SearchResponse
@@ -239,25 +240,25 @@ class StockAnalysisPipeline:
             AnalysisResult 或 None（如果分析失败）
         """
         try:
-            # 获取股票名称（优先级：Tushare > Baostock > 实时行情 > 静态映射）
+            # 获取股票名称（优先级：Akshare新浪 > Tushare > 静态映射）
             stock_name = ''
             
-            # Step 0: 优先从 Tushare 获取股票名称
+            # Step 0: 优先使用 Akshare 新浪接口（GitHub Actions 中最稳定）
             try:
-                stock_name = get_stock_name_from_tushare(code)
+                stock_name = self.akshare_fetcher.get_stock_name(code)
                 if stock_name:
-                    logger.info(f"[{code}] Tushare 获取股票名称成功: {stock_name}")
+                    logger.info(f"[{code}] Akshare新浪 获取股票名称成功: {stock_name}")
             except Exception as e:
-                logger.debug(f"[{code}] Tushare 获取股票名称失败: {e}")
+                logger.debug(f"[{code}] Akshare 获取股票名称失败: {e}")
             
-            # Step 0.5: Tushare 失败时，使用 Baostock（完全免费）
+            # Step 0.5: Akshare 失败时，尝试 Tushare
             if not stock_name:
                 try:
-                    stock_name = get_stock_name_from_baostock(code)
+                    stock_name = get_stock_name_from_tushare(code)
                     if stock_name:
-                        logger.info(f"[{code}] Baostock 获取股票名称成功: {stock_name}")
+                        logger.info(f"[{code}] Tushare 获取股票名称成功: {stock_name}")
                 except Exception as e:
-                    logger.debug(f"[{code}] Baostock 获取股票名称失败: {e}")
+                    logger.debug(f"[{code}] Tushare 获取股票名称失败: {e}")
             
             # Step 1: 获取实时行情（量比、换手率等）
             realtime_quote: Optional[RealtimeQuote] = None
