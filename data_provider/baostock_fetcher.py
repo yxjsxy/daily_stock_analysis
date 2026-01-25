@@ -277,11 +277,13 @@ class BaostockFetcher(BaseFetcher):
 
 # 全局股票名称缓存（Baostock）
 _bs_stock_name_cache: dict = {}
+# 全局 BaostockFetcher 实例（避免频繁创建导致连接问题）
+_bs_fetcher_instance: Optional[BaostockFetcher] = None
 
 
 def get_stock_name_from_baostock(stock_code: str) -> str:
     """
-    从 Baostock 获取股票名称（带缓存）
+    从 Baostock 获取股票名称（带缓存，复用实例）
     
     Args:
         stock_code: 股票代码
@@ -289,18 +291,25 @@ def get_stock_name_from_baostock(stock_code: str) -> str:
     Returns:
         股票名称
     """
+    global _bs_fetcher_instance
+    
     # 从缓存获取
     if stock_code in _bs_stock_name_cache:
         return _bs_stock_name_cache[stock_code]
     
     try:
-        fetcher = BaostockFetcher()
-        name = fetcher.get_stock_name(stock_code)
+        # 复用全局实例，避免频繁创建导致连接冲突
+        if _bs_fetcher_instance is None:
+            _bs_fetcher_instance = BaostockFetcher()
+        
+        name = _bs_fetcher_instance.get_stock_name(stock_code)
         if name:
             _bs_stock_name_cache[stock_code] = name
             return name
     except Exception as e:
         logger.debug(f"Baostock 获取股票名称失败: {e}")
+        # 出错时重置实例，下次重新创建
+        _bs_fetcher_instance = None
     
     return ''
 
