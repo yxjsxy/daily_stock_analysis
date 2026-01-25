@@ -289,8 +289,6 @@ def get_stock_name_from_baostock(stock_code: str) -> str:
     Returns:
         股票名称
     """
-    global _bs_stock_name_cache
-    
     # 从缓存获取
     if stock_code in _bs_stock_name_cache:
         return _bs_stock_name_cache[stock_code]
