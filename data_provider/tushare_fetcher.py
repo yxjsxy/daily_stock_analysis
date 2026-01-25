@@ -38,7 +38,7 @@ class TushareFetcher(BaseFetcher):
     """
     Tushare Pro 数据源实现
     
-    优先级：2
+    优先级：0（最高优先级）
     数据来源：Tushare Pro API
     
     关键策略：
@@ -52,7 +52,7 @@ class TushareFetcher(BaseFetcher):
     """
     
     name = "TushareFetcher"
-    priority = 2  # 默认优先级，会在 __init__ 中根据配置动态调整
+    priority = 0  # 最高优先级
 
     def __init__(self, rate_limit_per_minute: int = 80):
         """
@@ -105,7 +105,7 @@ class TushareFetcher(BaseFetcher):
 
         策略：
         - Token 配置且 API 初始化成功：优先级 0（最高）
-        - 其他情况：优先级 2（默认）
+        - Token 未配置或 API 初始化失败：优先级 99（降级，避免阻塞其他数据源）
 
         Returns:
             优先级数字（0=最高，数字越大优先级越低）
@@ -113,12 +113,13 @@ class TushareFetcher(BaseFetcher):
         config = get_config()
 
         if config.tushare_token and self._api is not None:
-            # Token 配置且 API 初始化成功，提升为最高优先级
-            logger.info("✅ 检测到 TUSHARE_TOKEN 且 API 初始化成功，Tushare 数据源优先级提升为最高 (Priority 0)")
+            # Token 配置且 API 初始化成功，保持最高优先级
+            logger.info("✅ Tushare API 初始化成功，优先级: 0（最高）")
             return 0
 
-        # Token 未配置或 API 初始化失败，保持默认优先级
-        return 2
+        # Token 未配置或 API 初始化失败，降级到最低
+        logger.warning("⚠️ Tushare Token 未配置或 API 初始化失败，优先级降为 99")
+        return 99
 
     def is_available(self) -> bool:
         """
@@ -298,6 +299,158 @@ class TushareFetcher(BaseFetcher):
         df = df[existing_cols]
         
         return df
+
+    def get_stock_name(self, stock_code: str) -> str:
+        """
+        获取股票名称
+        
+        使用 Tushare stock_basic 接口获取股票基本信息
+        
+        Args:
+            stock_code: 股票代码（6位数字）
+            
+        Returns:
+            股票名称，获取失败返回空字符串
+        """
+        if not self._api:
+            return ''
+        
+        try:
+            # 转换代码格式（000001 -> 000001.SZ 或 600519 -> 600519.SH）
+            ts_code = self._convert_to_tushare_code(stock_code)
+            
+            # 查询股票基本信息
+            df = self._api.stock_basic(
+                ts_code=ts_code,
+                fields='ts_code,name,industry'
+            )
+            
+            if df is not None and not df.empty:
+                name = df.iloc[0].get('name', '')
+                if name:
+                    logger.debug(f"[Tushare] 获取股票名称成功: {stock_code} -> {name}")
+                    return str(name)
+            
+            # 如果精确匹配失败，尝试模糊匹配
+            df = self._api.stock_basic(fields='ts_code,name')
+            if df is not None and not df.empty:
+                # 查找匹配的股票代码
+                match = df[df['ts_code'].str.startswith(stock_code)]
+                if not match.empty:
+                    name = match.iloc[0].get('name', '')
+                    if name:
+                        logger.debug(f"[Tushare] 模糊匹配股票名称: {stock_code} -> {name}")
+                        return str(name)
+            
+            return ''
+            
+        except Exception as e:
+            logger.debug(f"[Tushare] 获取股票名称失败 {stock_code}: {e}")
+            return ''
+
+    def get_all_stock_names(self) -> dict:
+        """
+        获取所有股票的名称映射表
+        
+        Returns:
+            字典 {股票代码: 股票名称}
+        """
+        if not self._api:
+            return {}
+        
+        try:
+            df = self._api.stock_basic(
+                exchange='',
+                list_status='L',  # 只获取上市股票
+                fields='ts_code,name'
+            )
+            
+            if df is not None and not df.empty:
+                # 转换为字典 {代码: 名称}
+                result = {}
+                for _, row in df.iterrows():
+                    ts_code = row.get('ts_code', '')
+                    name = row.get('name', '')
+                    if ts_code and name:
+                        # 提取6位数字代码
+                        code = ts_code.split('.')[0]
+                        result[code] = name
+                
+                logger.info(f"[Tushare] 获取 {len(result)} 只股票名称")
+                return result
+            
+            return {}
+            
+        except Exception as e:
+            logger.warning(f"[Tushare] 获取股票名称列表失败: {e}")
+            return {}
+
+
+# 缓存所有股票名称（避免重复请求）
+_stock_name_cache: dict = {}
+_stock_name_cache_time: float = 0
+
+
+def get_stock_name_from_tushare(stock_code: str, api=None) -> str:
+    """
+    从 Tushare 获取股票名称（带缓存）
+    
+    Args:
+        stock_code: 股票代码
+        api: Tushare API 实例（可选）
+        
+    Returns:
+        股票名称
+    """
+    global _stock_name_cache, _stock_name_cache_time
+    
+    # 检查缓存是否有效（1小时过期）
+    current_time = time.time()
+    if current_time - _stock_name_cache_time > 3600:
+        _stock_name_cache = {}
+        _stock_name_cache_time = current_time
+    
+    # 从缓存获取
+    if stock_code in _stock_name_cache:
+        return _stock_name_cache[stock_code]
+    
+    # 如果没有 API，创建一个
+    if api is None:
+        try:
+            config = get_config()
+            if config.tushare_token:
+                import tushare as ts
+                ts.set_token(config.tushare_token)
+                api = ts.pro_api()
+        except:
+            return ''
+    
+    if api is None:
+        return ''
+    
+    try:
+        # 转换代码格式
+        if stock_code.startswith('6'):
+            ts_code = f"{stock_code}.SH"
+        elif stock_code.startswith(('0', '3')):
+            ts_code = f"{stock_code}.SZ"
+        elif stock_code.startswith('8') or stock_code.startswith('4'):
+            ts_code = f"{stock_code}.BJ"
+        else:
+            ts_code = stock_code
+        
+        df = api.stock_basic(ts_code=ts_code, fields='name')
+        if df is not None and not df.empty:
+            name = str(df.iloc[0].get('name', ''))
+            if name:
+                _stock_name_cache[stock_code] = name
+                return name
+        
+        return ''
+        
+    except Exception as e:
+        logger.debug(f"获取股票名称失败 {stock_code}: {e}")
+        return ''
 
 
 if __name__ == "__main__":

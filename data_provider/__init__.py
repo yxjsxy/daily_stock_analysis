@@ -9,22 +9,22 @@
 2. 自动故障切换
 3. 防封禁流控策略
 
-数据源优先级（动态调整）：
+数据源优先级（2026-01 调整）：
 【配置了 TUSHARE_TOKEN 时】
-1. TushareFetcher (Priority 0) - 🔥 最高优先级（动态提升）
-2. EfinanceFetcher (Priority 0) - 同优先级
-3. AkshareFetcher (Priority 1) - 来自 akshare 库
-4. BaostockFetcher (Priority 3) - 来自 baostock 库
-5. YfinanceFetcher (Priority 4) - 来自 yfinance 库
+1. TushareFetcher (Priority 0) - 🔥 最高优先级（稳定、专业）
+2. BaostockFetcher (Priority 2) - 证券宝（免费、稳定）
+3. AkshareFetcher (Priority 3) - 东方财富（GitHub Actions 环境不稳定）
+4. EfinanceFetcher (Priority 4) - 东方财富（GitHub Actions 环境不稳定）
+5. YfinanceFetcher (Priority 5) - Yahoo Finance（兜底）
 
 【未配置 TUSHARE_TOKEN 时】
-1. EfinanceFetcher (Priority 0) - 最高优先级，来自 efinance 库
-2. AkshareFetcher (Priority 1) - 来自 akshare 库
-3. TushareFetcher (Priority 2) - 来自 tushare 库（不可用）
-4. BaostockFetcher (Priority 3) - 来自 baostock 库
-5. YfinanceFetcher (Priority 4) - 来自 yfinance 库
+1. BaostockFetcher (Priority 2) - 证券宝（免费、稳定）
+2. AkshareFetcher (Priority 3) - 东方财富
+3. EfinanceFetcher (Priority 4) - 东方财富
+4. YfinanceFetcher (Priority 5) - Yahoo Finance
+5. TushareFetcher (Priority 99) - 不可用
 
-提示：优先级数字越小越优先，同优先级按初始化顺序排列
+提示：优先级数字越小越优先；东方财富接口在 GitHub Actions 中易被封禁，已降级
 """
 
 from .base import BaseFetcher, DataFetcherManager

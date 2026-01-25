@@ -260,14 +260,12 @@ class DataFetcherManager:
         """
         初始化默认数据源列表
 
-        优先级动态调整逻辑：
-        - 如果配置了 TUSHARE_TOKEN：Tushare 优先级提升为 0（最高）
-        - 否则按默认优先级：
-          0. EfinanceFetcher (Priority 0) - 最高优先级
-          1. AkshareFetcher (Priority 1)
-          2. TushareFetcher (Priority 2)
-          3. BaostockFetcher (Priority 3)
-          4. YfinanceFetcher (Priority 4)
+        优先级（2026-01 调整，东方财富接口降级）：
+        - TushareFetcher (Priority 0) - 最高优先级（需配置 Token）
+        - BaostockFetcher (Priority 2) - 证券宝（免费稳定）
+        - AkshareFetcher (Priority 3) - 东方财富（降级）
+        - EfinanceFetcher (Priority 4) - 东方财富（降级）
+        - YfinanceFetcher (Priority 5) - 兜底
         """
         from .efinance_fetcher import EfinanceFetcher
         from .akshare_fetcher import AkshareFetcher
@@ -294,7 +292,7 @@ class DataFetcherManager:
             yfinance,
         ]
 
-        # 按优先级排序（Tushare 如果配置了 Token 且初始化成功，优先级为 0）
+        # 按优先级排序（Tushare 已设为最高优先级，东方财富接口已降级）
         self._fetchers.sort(key=lambda f: f.priority)
 
         # 构建优先级说明

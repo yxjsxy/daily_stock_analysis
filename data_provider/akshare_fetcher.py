@@ -242,7 +242,7 @@ class AkshareFetcher(BaseFetcher):
     """
     Akshare 数据源实现
     
-    优先级：1（最高）
+    优先级：3（降级，东方财富接口不稳定）
     数据来源：东方财富网爬虫
     
     关键策略：
@@ -252,7 +252,7 @@ class AkshareFetcher(BaseFetcher):
     """
     
     name = "AkshareFetcher"
-    priority = 1
+    priority = 3  # 降级：东方财富接口在 GitHub Actions 环境中不稳定
     
     def __init__(self, sleep_min: float = 2.0, sleep_max: float = 5.0):
         """
@@ -947,6 +947,82 @@ class AkshareFetcher(BaseFetcher):
         result['chip_distribution'] = self.get_chip_distribution(stock_code)
         
         return result
+
+    def get_stock_name(self, stock_code: str) -> str:
+        """
+        单独获取股票名称（不需要完整的实时行情）
+        
+        优先从缓存的实时行情数据中获取，如果缓存为空则尝试获取一次。
+        这个方法专门用于获取股票名称，即使实时行情部分失败也能返回名称。
+        
+        Args:
+            stock_code: 股票代码（6位数字）
+            
+        Returns:
+            股票名称，获取失败返回空字符串
+        """
+        import akshare as ak
+        
+        try:
+            # 判断代码类型
+            is_etf = _is_etf_code(stock_code)
+            is_hk = _is_hk_code(stock_code)
+            
+            current_time = time.time()
+            
+            if is_etf:
+                # ETF：使用 ETF 缓存
+                cache = _etf_realtime_cache
+                fetch_func = ak.fund_etf_spot_em
+                name_col = '名称'
+                code_col = '代码'
+            elif is_hk:
+                # 港股：暂不支持名称缓存，直接尝试获取
+                try:
+                    self._set_random_user_agent()
+                    self._enforce_rate_limit()
+                    df = ak.stock_hk_spot_em()
+                    if df is not None and not df.empty:
+                        row = df[df['代码'] == stock_code]
+                        if not row.empty:
+                            return str(row.iloc[0].get('名称', ''))
+                except Exception as e:
+                    logger.debug(f"获取港股 {stock_code} 名称失败: {e}")
+                return ''
+            else:
+                # A股：使用 A股缓存
+                cache = _realtime_cache
+                fetch_func = ak.stock_zh_a_spot_em
+                name_col = '名称'
+                code_col = '代码'
+            
+            # 检查缓存是否有效
+            if cache['data'] is not None and current_time - cache['timestamp'] < cache['ttl']:
+                df = cache['data']
+            else:
+                # 缓存无效，尝试获取数据
+                try:
+                    self._set_random_user_agent()
+                    self._enforce_rate_limit()
+                    df = fetch_func()
+                    if df is not None and not df.empty:
+                        cache['data'] = df
+                        cache['timestamp'] = current_time
+                except Exception as e:
+                    logger.debug(f"获取股票列表失败: {e}")
+                    df = cache.get('data')  # 尝试使用旧缓存
+            
+            # 从数据中查找股票名称
+            if df is not None and not df.empty:
+                row = df[df[code_col] == stock_code]
+                if not row.empty:
+                    return str(row.iloc[0].get(name_col, ''))
+            
+            return ''
+            
+        except Exception as e:
+            logger.debug(f"获取 {stock_code} 股票名称失败: {e}")
+            return ''
 
 
 if __name__ == "__main__":

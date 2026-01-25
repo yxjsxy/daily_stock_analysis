@@ -8,9 +8,14 @@
 1. 获取大盘指数数据（上证、深证、创业板）
 2. 搜索市场新闻形成复盘情报
 3. 使用大模型生成每日大盘复盘报告
+
+数据源优先级：
+1. Tushare Pro（稳定、专业）
+2. Akshare（备选，东方财富接口不稳定）
 """
 
 import logging
+import random
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -23,6 +28,14 @@ from config import get_config
 from search_service import SearchService
 
 logger = logging.getLogger(__name__)
+
+# User-Agent 列表（防封禁）
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+]
 
 
 @dataclass
@@ -109,6 +122,24 @@ class MarketAnalyzer:
         self.search_service = search_service
         self.analyzer = analyzer
         
+        # 初始化 Tushare API（优先数据源）
+        self._tushare_api = None
+        self._init_tushare()
+        
+    def _init_tushare(self) -> None:
+        """初始化 Tushare API"""
+        try:
+            if self.config.tushare_token:
+                import tushare as ts
+                ts.set_token(self.config.tushare_token)
+                self._tushare_api = ts.pro_api()
+                logger.info("[大盘] Tushare API 初始化成功")
+            else:
+                logger.warning("[大盘] Tushare Token 未配置，将使用 Akshare 作为备选")
+        except Exception as e:
+            logger.warning(f"[大盘] Tushare API 初始化失败: {e}，将使用 Akshare 作为备选")
+            self._tushare_api = None
+
     def get_market_overview(self) -> MarketOverview:
         """
         获取市场概览数据
@@ -133,25 +164,133 @@ class MarketAnalyzer:
         
         return overview
 
-    def _call_akshare_with_retry(self, fn, name: str, attempts: int = 2):
+    def _set_random_user_agent(self) -> None:
+        """设置随机 User-Agent（防封禁）"""
+        try:
+            import requests
+            # 尝试设置 akshare 内部使用的 session
+            random_ua = random.choice(USER_AGENTS)
+            # 通过环境变量影响某些库的行为
+            import os
+            os.environ['USER_AGENT'] = random_ua
+            logger.debug(f"[大盘] 设置 User-Agent: {random_ua[:50]}...")
+        except Exception as e:
+            logger.debug(f"[大盘] 设置 User-Agent 失败: {e}")
+
+    def _call_akshare_with_retry(self, fn, name: str, attempts: int = 3):
+        """带重试和防封禁策略的 akshare 调用"""
         last_error: Optional[Exception] = None
         for attempt in range(1, attempts + 1):
             try:
+                # 防封禁：设置随机 User-Agent
+                self._set_random_user_agent()
+                
+                # 防封禁：请求前随机休眠 1-3 秒
+                sleep_time = random.uniform(1.0, 3.0)
+                logger.debug(f"[大盘] 请求前休眠 {sleep_time:.2f}s...")
+                time.sleep(sleep_time)
+                
                 return fn()
             except Exception as e:
                 last_error = e
                 logger.warning(f"[大盘] {name} 获取失败 (attempt {attempt}/{attempts}): {e}")
                 if attempt < attempts:
-                    time.sleep(min(2 ** attempt, 5))
+                    # 指数退避
+                    backoff_time = min(2 ** attempt + random.uniform(0, 2), 10)
+                    logger.info(f"[大盘] 等待 {backoff_time:.1f}s 后重试...")
+                    time.sleep(backoff_time)
         logger.error(f"[大盘] {name} 最终失败: {last_error}")
         return None
     
+    # Tushare 指数代码映射
+    TUSHARE_INDEX_MAP = {
+        'sh000001': '000001.SH',  # 上证指数
+        'sz399001': '399001.SZ',  # 深证成指
+        'sz399006': '399006.SZ',  # 创业板指
+        'sh000688': '000688.SH',  # 科创50
+        'sh000016': '000016.SH',  # 上证50
+        'sh000300': '000300.SH',  # 沪深300
+    }
+
     def _get_main_indices(self) -> List[MarketIndex]:
-        """获取主要指数实时行情"""
+        """获取主要指数实时行情（优先使用 Tushare）"""
+        indices = []
+        
+        # 方案1: 优先使用 Tushare
+        if self._tushare_api:
+            indices = self._get_indices_from_tushare()
+            if indices:
+                return indices
+            logger.warning("[大盘] Tushare 获取指数失败，尝试 Akshare...")
+        
+        # 方案2: 备选使用 Akshare
+        indices = self._get_indices_from_akshare()
+        return indices
+
+    def _get_indices_from_tushare(self) -> List[MarketIndex]:
+        """使用 Tushare 获取指数行情"""
+        indices = []
+        today = datetime.now().strftime('%Y%m%d')
+        
+        try:
+            logger.info("[大盘] 使用 Tushare 获取指数行情...")
+            
+            for ak_code, name in self.MAIN_INDICES.items():
+                ts_code = self.TUSHARE_INDEX_MAP.get(ak_code)
+                if not ts_code:
+                    continue
+                
+                try:
+                    # 获取指数日线数据
+                    df = self._tushare_api.index_daily(
+                        ts_code=ts_code,
+                        start_date=today,
+                        end_date=today
+                    )
+                    
+                    if df is not None and not df.empty:
+                        row = df.iloc[0]
+                        index = MarketIndex(
+                            code=ak_code,
+                            name=name,
+                            current=float(row.get('close', 0) or 0),
+                            change=float(row.get('change', 0) or 0),
+                            change_pct=float(row.get('pct_chg', 0) or 0),
+                            open=float(row.get('open', 0) or 0),
+                            high=float(row.get('high', 0) or 0),
+                            low=float(row.get('low', 0) or 0),
+                            prev_close=float(row.get('pre_close', 0) or 0),
+                            volume=float(row.get('vol', 0) or 0) * 100,  # Tushare 单位是手
+                            amount=float(row.get('amount', 0) or 0) * 1000,  # Tushare 单位是千元
+                        )
+                        # 计算振幅
+                        if index.prev_close > 0:
+                            index.amplitude = (index.high - index.low) / index.prev_close * 100
+                        indices.append(index)
+                        
+                except Exception as e:
+                    error_msg = str(e)
+                    # 检测到权限不足，立即放弃 Tushare，节省时间
+                    if '没有接口访问权限' in error_msg or '权限' in error_msg:
+                        logger.warning(f"[大盘] Tushare 积分不足，跳过指数接口")
+                        return []  # 立即返回空列表，触发回退到 Akshare
+                    logger.warning(f"[大盘] Tushare 获取 {name} 失败: {e}")
+                    continue
+            
+            if indices:
+                logger.info(f"[大盘] Tushare 获取到 {len(indices)} 个指数行情")
+            
+        except Exception as e:
+            logger.error(f"[大盘] Tushare 获取指数行情失败: {e}")
+        
+        return indices
+
+    def _get_indices_from_akshare(self) -> List[MarketIndex]:
+        """使用 Akshare 获取指数行情（备选方案）"""
         indices = []
         
         try:
-            logger.info("[大盘] 获取主要指数实时行情...")
+            logger.info("[大盘] 使用 Akshare 获取指数行情...")
             
             # 使用 akshare 获取指数行情（新浪财经接口，包含深市指数）
             df = self._call_akshare_with_retry(ak.stock_zh_index_spot_sina, "指数行情", attempts=2)
@@ -184,24 +323,162 @@ class MarketAnalyzer:
                             index.amplitude = (index.high - index.low) / index.prev_close * 100
                         indices.append(index)
                         
-                logger.info(f"[大盘] 获取到 {len(indices)} 个指数行情")
+                logger.info(f"[大盘] Akshare 获取到 {len(indices)} 个指数行情")
                 
         except Exception as e:
-            logger.error(f"[大盘] 获取指数行情失败: {e}")
+            logger.error(f"[大盘] Akshare 获取指数行情失败: {e}")
         
         return indices
     
     def _get_market_statistics(self, overview: MarketOverview):
-        """获取市场涨跌统计"""
+        """获取市场涨跌统计（优先使用 Tushare）"""
+        
+        # 方案1: 优先使用 Tushare 获取涨跌停统计
+        if self._tushare_api:
+            if self._get_statistics_from_tushare(overview):
+                return
+            logger.warning("[大盘] Tushare 获取统计失败，尝试 Akshare...")
+        
+        # 方案2: 备选使用 Akshare
+        self._get_statistics_from_akshare(overview)
+
+    def _get_statistics_from_tushare(self, overview: MarketOverview) -> bool:
+        """使用 Tushare 获取市场统计数据"""
+        today = datetime.now().strftime('%Y%m%d')
+        
         try:
-            logger.info("[大盘] 获取市场涨跌统计...")
+            logger.info("[大盘] 使用 Tushare 获取涨跌停统计...")
             
-            # 获取全部A股实时行情
-            df = self._call_akshare_with_retry(ak.stock_zh_a_spot_em, "A股实时行情", attempts=2)
+            # 获取涨停列表
+            try:
+                limit_up_df = self._tushare_api.limit_list(
+                    trade_date=today,
+                    limit_type='U'  # 涨停
+                )
+                if limit_up_df is not None and not limit_up_df.empty:
+                    overview.limit_up_count = len(limit_up_df)
+            except Exception as e:
+                error_msg = str(e)
+                if '没有接口访问权限' in error_msg or '权限' in error_msg:
+                    logger.warning(f"[大盘] Tushare 积分不足，跳过涨跌停接口")
+                    return False
+                logger.debug(f"[大盘] Tushare 获取涨停列表失败: {e}")
+            
+            # 获取跌停列表
+            try:
+                limit_down_df = self._tushare_api.limit_list(
+                    trade_date=today,
+                    limit_type='D'  # 跌停
+                )
+                if limit_down_df is not None and not limit_down_df.empty:
+                    overview.limit_down_count = len(limit_down_df)
+            except Exception as e:
+                error_msg = str(e)
+                if '没有接口访问权限' in error_msg or '权限' in error_msg:
+                    logger.debug(f"[大盘] Tushare 跌停接口无权限，跳过")
+                else:
+                    logger.debug(f"[大盘] Tushare 获取跌停列表失败: {e}")
+            
+            # 如果成功获取到涨跌停数据，认为成功
+            if overview.limit_up_count > 0 or overview.limit_down_count > 0:
+                logger.info(f"[大盘] Tushare 涨停:{overview.limit_up_count} 跌停:{overview.limit_down_count}")
+                # 其他数据（上涨下跌家数、成交额）仍需从 Akshare 补充
+                self._supplement_from_akshare(overview)
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.warning(f"[大盘] Tushare 获取统计失败: {e}")
+            return False
+
+    def _supplement_from_akshare(self, overview: MarketOverview):
+        """从 Akshare 补充缺失的统计数据（优先新浪接口）"""
+        try:
+            df = None
+            
+            # 方案1: 优先使用新浪接口（更稳定）
+            try:
+                df = self._call_akshare_with_retry(ak.stock_zh_a_spot, "A股实时行情-新浪", attempts=2)
+                if df is not None and not df.empty:
+                    logger.info("[大盘] 使用新浪接口补充统计数据")
+            except Exception as e:
+                logger.debug(f"[大盘] 新浪接口获取失败: {e}")
+            
+            # 方案2: 尝试复用东方财富缓存
+            if df is None or df.empty:
+                try:
+                    from data_provider.akshare_fetcher import _realtime_cache
+                    if _realtime_cache.get('data') is not None and not _realtime_cache['data'].empty:
+                        df = _realtime_cache['data']
+                        logger.debug("[大盘] 复用东方财富缓存数据补充统计")
+                except:
+                    pass
+            
+            # 方案3: 直接调用东方财富接口
+            if df is None or df.empty:
+                df = self._call_akshare_with_retry(ak.stock_zh_a_spot_em, "A股实时行情-东方财富", attempts=2)
             
             if df is not None and not df.empty:
-                # 涨跌统计
-                change_col = '涨跌幅'
+                # 新浪接口列名可能不同，需要兼容处理
+                change_col = '涨跌幅' if '涨跌幅' in df.columns else 'changepercent'
+                if change_col in df.columns:
+                    df[change_col] = pd.to_numeric(df[change_col], errors='coerce')
+                    if overview.up_count == 0:
+                        overview.up_count = len(df[df[change_col] > 0])
+                    if overview.down_count == 0:
+                        overview.down_count = len(df[df[change_col] < 0])
+                    if overview.flat_count == 0:
+                        overview.flat_count = len(df[df[change_col] == 0])
+                
+                # 成交额列名兼容
+                amount_col = '成交额' if '成交额' in df.columns else 'amount'
+                if amount_col in df.columns and overview.total_amount == 0:
+                    df[amount_col] = pd.to_numeric(df[amount_col], errors='coerce')
+                    overview.total_amount = df[amount_col].sum() / 1e8
+                
+                logger.info(f"[大盘] 补充统计: 涨:{overview.up_count} 跌:{overview.down_count} 成交额:{overview.total_amount:.0f}亿")
+                
+        except Exception as e:
+            logger.debug(f"[大盘] 补充统计数据失败: {e}")
+
+    def _get_statistics_from_akshare(self, overview: MarketOverview):
+        """使用 Akshare 获取市场统计数据（优先新浪接口）"""
+        try:
+            logger.info("[大盘] 使用 Akshare 获取市场涨跌统计...")
+            
+            df = None
+            data_source = ""
+            
+            # 方案1: 优先使用新浪接口（更稳定，不易被封）
+            try:
+                df = self._call_akshare_with_retry(ak.stock_zh_a_spot, "A股实时行情-新浪", attempts=2)
+                if df is not None and not df.empty:
+                    data_source = "新浪"
+                    logger.info("[大盘] 使用新浪接口获取涨跌统计")
+            except Exception as e:
+                logger.debug(f"[大盘] 新浪接口获取失败: {e}")
+            
+            # 方案2: 尝试复用东方财富缓存
+            if df is None or df.empty:
+                try:
+                    from data_provider.akshare_fetcher import _realtime_cache
+                    if _realtime_cache.get('data') is not None and not _realtime_cache['data'].empty:
+                        df = _realtime_cache['data']
+                        data_source = "东方财富(缓存)"
+                        logger.info("[大盘] 复用东方财富缓存数据")
+                except Exception as e:
+                    logger.debug(f"[大盘] 无法复用缓存: {e}")
+            
+            # 方案3: 直接调用东方财富接口
+            if df is None or df.empty:
+                df = self._call_akshare_with_retry(ak.stock_zh_a_spot_em, "A股实时行情-东方财富", attempts=2)
+                if df is not None and not df.empty:
+                    data_source = "东方财富"
+            
+            if df is not None and not df.empty:
+                # 涨跌统计 - 兼容新浪和东方财富的列名
+                change_col = '涨跌幅' if '涨跌幅' in df.columns else 'changepercent'
                 if change_col in df.columns:
                     df[change_col] = pd.to_numeric(df[change_col], errors='coerce')
                     overview.up_count = len(df[df[change_col] > 0])
@@ -212,23 +489,87 @@ class MarketAnalyzer:
                     overview.limit_up_count = len(df[df[change_col] >= 9.9])
                     overview.limit_down_count = len(df[df[change_col] <= -9.9])
                 
-                # 两市成交额
-                amount_col = '成交额'
+                # 两市成交额 - 兼容不同列名
+                amount_col = '成交额' if '成交额' in df.columns else 'amount'
                 if amount_col in df.columns:
                     df[amount_col] = pd.to_numeric(df[amount_col], errors='coerce')
                     overview.total_amount = df[amount_col].sum() / 1e8  # 转为亿元
                 
-                logger.info(f"[大盘] 涨:{overview.up_count} 跌:{overview.down_count} 平:{overview.flat_count} "
+                logger.info(f"[大盘] {data_source} 涨:{overview.up_count} 跌:{overview.down_count} 平:{overview.flat_count} "
                           f"涨停:{overview.limit_up_count} 跌停:{overview.limit_down_count} "
                           f"成交额:{overview.total_amount:.0f}亿")
+            else:
+                logger.warning("[大盘] 无法获取涨跌统计数据，将使用默认值")
                 
         except Exception as e:
-            logger.error(f"[大盘] 获取涨跌统计失败: {e}")
+            logger.error(f"[大盘] Akshare 获取涨跌统计失败: {e}")
     
     def _get_sector_rankings(self, overview: MarketOverview):
-        """获取板块涨跌榜"""
+        """获取板块涨跌榜（优先使用 Tushare）"""
+        
+        # 方案1: 优先使用 Tushare
+        if self._tushare_api:
+            if self._get_sectors_from_tushare(overview):
+                return
+            logger.warning("[大盘] Tushare 获取板块失败，尝试 Akshare...")
+        
+        # 方案2: 备选使用 Akshare
+        self._get_sectors_from_akshare(overview)
+
+    def _get_sectors_from_tushare(self, overview: MarketOverview) -> bool:
+        """使用 Tushare 获取板块涨跌榜"""
+        today = datetime.now().strftime('%Y%m%d')
+        
         try:
-            logger.info("[大盘] 获取板块涨跌榜...")
+            logger.info("[大盘] 使用 Tushare 获取板块涨跌榜...")
+            
+            # 获取同花顺行业指数日线行情
+            df = self._tushare_api.ths_daily(
+                trade_date=today,
+                fields='ts_code,name,close,pct_change'
+            )
+            
+            if df is not None and not df.empty:
+                # 过滤掉非行业指数（保留行业板块）
+                df = df[df['ts_code'].str.startswith('88')]  # 同花顺行业指数以88开头
+                
+                if not df.empty:
+                    df['pct_change'] = pd.to_numeric(df['pct_change'], errors='coerce')
+                    df = df.dropna(subset=['pct_change'])
+                    
+                    # 涨幅前5
+                    top = df.nlargest(5, 'pct_change')
+                    overview.top_sectors = [
+                        {'name': row['name'], 'change_pct': row['pct_change']}
+                        for _, row in top.iterrows()
+                    ]
+                    
+                    # 跌幅前5
+                    bottom = df.nsmallest(5, 'pct_change')
+                    overview.bottom_sectors = [
+                        {'name': row['name'], 'change_pct': row['pct_change']}
+                        for _, row in bottom.iterrows()
+                    ]
+                    
+                    logger.info(f"[大盘] Tushare 领涨板块: {[s['name'] for s in overview.top_sectors]}")
+                    logger.info(f"[大盘] Tushare 领跌板块: {[s['name'] for s in overview.bottom_sectors]}")
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            error_msg = str(e)
+            # 检测到权限不足，快速返回
+            if '没有接口访问权限' in error_msg or '权限' in error_msg:
+                logger.warning(f"[大盘] Tushare 积分不足，跳过板块接口")
+                return False
+            logger.warning(f"[大盘] Tushare 获取板块失败: {e}")
+            return False
+
+    def _get_sectors_from_akshare(self, overview: MarketOverview):
+        """使用 Akshare 获取板块涨跌榜（备选方案）"""
+        try:
+            logger.info("[大盘] 使用 Akshare 获取板块涨跌榜...")
             
             # 获取行业板块行情
             df = self._call_akshare_with_retry(ak.stock_board_industry_name_em, "行业板块行情", attempts=2)
@@ -253,11 +594,11 @@ class MarketAnalyzer:
                         for _, row in bottom.iterrows()
                     ]
                     
-                    logger.info(f"[大盘] 领涨板块: {[s['name'] for s in overview.top_sectors]}")
-                    logger.info(f"[大盘] 领跌板块: {[s['name'] for s in overview.bottom_sectors]}")
+                    logger.info(f"[大盘] Akshare 领涨板块: {[s['name'] for s in overview.top_sectors]}")
+                    logger.info(f"[大盘] Akshare 领跌板块: {[s['name'] for s in overview.bottom_sectors]}")
                     
         except Exception as e:
-            logger.error(f"[大盘] 获取板块涨跌榜失败: {e}")
+            logger.error(f"[大盘] Akshare 获取板块涨跌榜失败: {e}")
     
     # def _get_north_flow(self, overview: MarketOverview):
     #     """获取北向资金流入"""

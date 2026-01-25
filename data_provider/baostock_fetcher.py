@@ -52,7 +52,7 @@ class BaostockFetcher(BaseFetcher):
     """
     
     name = "BaostockFetcher"
-    priority = 3
+    priority = 2  # 证券宝：免费且稳定，作为 Tushare 的备选
     
     def __init__(self):
         """初始化 BaostockFetcher"""
@@ -230,6 +230,81 @@ class BaostockFetcher(BaseFetcher):
         df = df[existing_cols]
         
         return df
+
+    def get_stock_name(self, stock_code: str) -> str:
+        """
+        获取股票名称
+        
+        使用 Baostock query_stock_basic 接口获取股票基本信息
+        
+        Args:
+            stock_code: 股票代码（6位数字）
+            
+        Returns:
+            股票名称，获取失败返回空字符串
+        """
+        bs_code = self._convert_stock_code(stock_code)
+        
+        try:
+            with self._baostock_session() as bs:
+                # 查询股票基本信息
+                rs = bs.query_stock_basic(code=bs_code)
+                
+                if rs.error_code != '0':
+                    logger.debug(f"Baostock 查询股票信息失败: {rs.error_msg}")
+                    return ''
+                
+                # 获取数据
+                data_list = []
+                while rs.next():
+                    data_list.append(rs.get_row_data())
+                
+                if data_list:
+                    # 字段: code, code_name, ipoDate, outDate, type, status
+                    row = data_list[0]
+                    if len(row) >= 2:
+                        name = row[1]  # code_name
+                        if name:
+                            logger.debug(f"[Baostock] 获取股票名称成功: {stock_code} -> {name}")
+                            return str(name)
+                
+                return ''
+                
+        except Exception as e:
+            logger.debug(f"[Baostock] 获取股票名称失败 {stock_code}: {e}")
+            return ''
+
+
+# 全局股票名称缓存（Baostock）
+_bs_stock_name_cache: dict = {}
+
+
+def get_stock_name_from_baostock(stock_code: str) -> str:
+    """
+    从 Baostock 获取股票名称（带缓存）
+    
+    Args:
+        stock_code: 股票代码
+        
+    Returns:
+        股票名称
+    """
+    global _bs_stock_name_cache
+    
+    # 从缓存获取
+    if stock_code in _bs_stock_name_cache:
+        return _bs_stock_name_cache[stock_code]
+    
+    try:
+        fetcher = BaostockFetcher()
+        name = fetcher.get_stock_name(stock_code)
+        if name:
+            _bs_stock_name_cache[stock_code] = name
+            return name
+    except Exception as e:
+        logger.debug(f"Baostock 获取股票名称失败: {e}")
+    
+    return ''
 
 
 if __name__ == "__main__":

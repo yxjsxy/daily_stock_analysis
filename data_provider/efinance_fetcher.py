@@ -123,7 +123,7 @@ class EfinanceFetcher(BaseFetcher):
     """
     Efinance 数据源实现
     
-    优先级：0（最高，优先于 AkshareFetcher）
+    优先级：4（降级，东方财富接口不稳定）
     数据来源：东方财富网（通过 efinance 库封装）
     仓库：https://github.com/Micro-sheep/efinance
     
@@ -139,7 +139,7 @@ class EfinanceFetcher(BaseFetcher):
     """
     
     name = "EfinanceFetcher"
-    priority = 0  # 最高优先级，排在 AkshareFetcher 之前
+    priority = 4  # 降级：东方财富接口在 GitHub Actions 环境中不稳定
     
     def __init__(self, sleep_min: float = 1.5, sleep_max: float = 3.0):
         """
