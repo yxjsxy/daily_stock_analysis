@@ -45,9 +45,9 @@ from config import get_config, Config
 from storage import get_db, DatabaseManager
 from data_provider import DataFetcherManager
 from data_provider.akshare_fetcher import AkshareFetcher, RealtimeQuote, ChipDistribution
+from data_provider.efinance_fetcher import EfinanceFetcher
 from data_provider.tushare_fetcher import TushareFetcher, get_stock_name_from_tushare
-# Baostock 在 GitHub Actions 中不稳定，已禁用
-# from data_provider.baostock_fetcher import get_stock_name_from_baostock
+from data_provider.baostock_fetcher import get_stock_name_from_baostock
 from analyzer import GeminiAnalyzer, AnalysisResult, STOCK_NAME_MAP
 from notification import NotificationService, NotificationChannel, send_daily_report
 from search_service import SearchService, SearchResponse
@@ -155,6 +155,7 @@ class StockAnalysisPipeline:
         self.db = get_db()
         self.fetcher_manager = DataFetcherManager()
         self.akshare_fetcher = AkshareFetcher()  # 用于获取增强数据（量比、筹码等）
+        self.efinance_fetcher = EfinanceFetcher()  # 备用实时行情数据源
         self.trend_analyzer = StockTrendAnalyzer()  # 趋势分析器
         self.chan_analyzer = ChanAnalyzer()  # 缠论分析器
         self.analyzer = GeminiAnalyzer()
@@ -240,18 +241,18 @@ class StockAnalysisPipeline:
             AnalysisResult 或 None（如果分析失败）
         """
         try:
-            # 获取股票名称（优先级：Akshare新浪 > Tushare > 静态映射）
+            # 获取股票名称（优先级：Baostock > Tushare > Akshare > 静态映射）
             stock_name = ''
             
-            # Step 0: 优先使用 Akshare 新浪接口（GitHub Actions 中最稳定）
+            # Step 0: 优先使用 Baostock（免费、本地运行稳定）
             try:
-                stock_name = self.akshare_fetcher.get_stock_name(code)
+                stock_name = get_stock_name_from_baostock(code)
                 if stock_name:
-                    logger.info(f"[{code}] Akshare新浪 获取股票名称成功: {stock_name}")
+                    logger.info(f"[{code}] Baostock 获取股票名称成功: {stock_name}")
             except Exception as e:
-                logger.debug(f"[{code}] Akshare 获取股票名称失败: {e}")
+                logger.debug(f"[{code}] Baostock 获取股票名称失败: {e}")
             
-            # Step 0.5: Akshare 失败时，尝试 Tushare
+            # Step 0.5: Baostock 失败时，尝试 Tushare
             if not stock_name:
                 try:
                     stock_name = get_stock_name_from_tushare(code)
@@ -260,19 +261,57 @@ class StockAnalysisPipeline:
                 except Exception as e:
                     logger.debug(f"[{code}] Tushare 获取股票名称失败: {e}")
             
+            # Step 0.6: Tushare 失败时，尝试 Akshare
+            if not stock_name:
+                try:
+                    stock_name = self.akshare_fetcher.get_stock_name(code)
+                    if stock_name:
+                        logger.info(f"[{code}] Akshare 获取股票名称成功: {stock_name}")
+                except Exception as e:
+                    logger.debug(f"[{code}] Akshare 获取股票名称失败: {e}")
+            
             # Step 1: 获取实时行情（量比、换手率等）
+            # 优先级：Efinance > Akshare（两者底层实现不同，提高成功率）
             realtime_quote: Optional[RealtimeQuote] = None
+            
+            # 先尝试 Efinance
             try:
-                realtime_quote = self.akshare_fetcher.get_realtime_quote(code)
-                if realtime_quote:
-                    # 如果还没有名称，使用实时行情返回的名称
-                    if not stock_name and realtime_quote.name:
-                        stock_name = realtime_quote.name
-                        logger.info(f"[{code}] 实时行情获取股票名称: {stock_name}")
-                    logger.info(f"[{code}] {stock_name or code} 实时行情: 价格={realtime_quote.price}, "
-                              f"量比={realtime_quote.volume_ratio}, 换手率={realtime_quote.turnover_rate}%")
+                ef_quote = self.efinance_fetcher.get_realtime_quote(code)
+                if ef_quote:
+                    # 转换为 RealtimeQuote 格式
+                    realtime_quote = RealtimeQuote(
+                        code=ef_quote.code,
+                        name=ef_quote.name,
+                        price=ef_quote.price,
+                        change_pct=ef_quote.change_pct,
+                        change_amount=ef_quote.change_amount,
+                        volume=ef_quote.volume,
+                        amount=ef_quote.amount,
+                        turnover_rate=ef_quote.turnover_rate,
+                        amplitude=ef_quote.amplitude,
+                        high=ef_quote.high,
+                        low=ef_quote.low,
+                        open_price=ef_quote.open_price,
+                        volume_ratio=0.0,  # Efinance 不提供量比
+                    )
+                    logger.info(f"[{code}] Efinance 实时行情: 价格={realtime_quote.price}, 换手率={realtime_quote.turnover_rate}%")
             except Exception as e:
-                logger.warning(f"[{code}] 获取实时行情失败: {e}")
+                logger.debug(f"[{code}] Efinance 实时行情失败: {e}")
+            
+            # Efinance 失败则尝试 Akshare
+            if not realtime_quote:
+                try:
+                    realtime_quote = self.akshare_fetcher.get_realtime_quote(code)
+                    if realtime_quote:
+                        logger.info(f"[{code}] Akshare 实时行情: 价格={realtime_quote.price}, "
+                                  f"量比={realtime_quote.volume_ratio}, 换手率={realtime_quote.turnover_rate}%")
+                except Exception as e:
+                    logger.warning(f"[{code}] Akshare 实时行情也失败: {e}")
+            
+            # 如果获取到实时行情且还没有股票名称，使用实时行情的名称
+            if realtime_quote and not stock_name and realtime_quote.name:
+                stock_name = realtime_quote.name
+                logger.info(f"[{code}] 实时行情获取股票名称: {stock_name}")
             
             # 如果还是没有名称，使用静态映射
             if not stock_name:
@@ -1033,7 +1072,10 @@ def main() -> int:
         # 模式2: 定时任务模式
         if args.schedule or config.schedule_enabled:
             logger.info("模式: 定时任务")
-            logger.info(f"每日执行时间: {config.schedule_time}")
+            
+            # 优先使用多时间配置，否则回退到单时间配置
+            schedule_times = config.schedule_times if config.schedule_times else [config.schedule_time]
+            logger.info(f"每日执行时间: {', '.join(schedule_times)}")
             
             from scheduler import run_with_schedule
             
@@ -1042,7 +1084,7 @@ def main() -> int:
             
             run_with_schedule(
                 task=scheduled_task,
-                schedule_time=config.schedule_time,
+                schedule_time=schedule_times,
                 run_immediately=True  # 启动时先执行一次
             )
             return 0

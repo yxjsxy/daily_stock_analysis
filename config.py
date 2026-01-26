@@ -105,7 +105,8 @@ class Config:
     
     # === 定时任务配置 ===
     schedule_enabled: bool = False            # 是否启用定时任务
-    schedule_time: str = "18:00"              # 每日推送时间（HH:MM 格式）
+    schedule_time: str = "18:00"              # 每日推送时间（HH:MM 格式），兼容旧配置
+    schedule_times: List[str] = None          # 多个定时时间（优先级高于schedule_time）
     market_review_enabled: bool = True        # 是否启用大盘复盘
     
     # === 流控配置（防封禁关键参数）===
@@ -218,6 +219,8 @@ class Config:
             debug=os.getenv('DEBUG', 'false').lower() == 'true',
             schedule_enabled=os.getenv('SCHEDULE_ENABLED', 'false').lower() == 'true',
             schedule_time=os.getenv('SCHEDULE_TIME', '18:00'),
+            # 支持多个定时时间，用逗号分隔，如 "00:00,06:45"
+            schedule_times=[t.strip() for t in os.getenv('SCHEDULE_TIMES', '').split(',') if t.strip()] or None,
             market_review_enabled=os.getenv('MARKET_REVIEW_ENABLED', 'true').lower() == 'true',
             webui_enabled=os.getenv('WEBUI_ENABLED', 'false').lower() == 'true',
             webui_host=os.getenv('WEBUI_HOST', '127.0.0.1'),

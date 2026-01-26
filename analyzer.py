@@ -29,6 +29,13 @@ from config import get_config
 logger = logging.getLogger(__name__)
 
 
+class JsonParseError(Exception):
+    """JSON 解析失败异常，用于触发 LLM 重试"""
+    def __init__(self, message: str, original_response: str = ""):
+        super().__init__(message)
+        self.original_response = original_response
+
+
 # 股票名称映射（常见股票）
 STOCK_NAME_MAP = {
     '600519': '贵州茅台',
@@ -867,27 +874,62 @@ class GeminiAnalyzer:
             
             logger.info(f"[LLM调用] 开始调用 Gemini API (temperature={generation_config['temperature']}, max_tokens={generation_config['max_output_tokens']})...")
             
-            # 使用带重试的 API 调用
-            start_time = time.time()
-            response_text = self._call_api_with_retry(prompt, generation_config)
-            elapsed = time.time() - start_time
+            # JSON 解析重试配置
+            max_json_retries = 3
+            last_response_text = ""
             
-            # 记录响应信息
-            logger.info(f"[LLM返回] Gemini API 响应成功, 耗时 {elapsed:.2f}s, 响应长度 {len(response_text)} 字符")
+            for json_attempt in range(1, max_json_retries + 1):
+                # 如果是重试，添加 JSON 格式修正提示
+                current_prompt = prompt
+                if json_attempt > 1:
+                    logger.warning(f"[JSON重试] 第 {json_attempt}/{max_json_retries} 次尝试，因上次响应 JSON 格式无效")
+                    current_prompt = prompt + f"""
+
+【重要提醒】
+上一次回复的 JSON 格式有误，请务必确保这次输出的是完整、合法的 JSON 格式：
+1. 不要在 JSON 外添加任何说明文字
+2. 确保所有引号、括号、逗号正确配对
+3. 字符串值中如有特殊字符请正确转义
+4. 直接输出 JSON，格式如: {{"sentiment_score": 70, ...}}
+"""
+                
+                # 使用带重试的 API 调用
+                start_time = time.time()
+                response_text = self._call_api_with_retry(current_prompt, generation_config)
+                elapsed = time.time() - start_time
+                last_response_text = response_text
+                
+                # 记录响应信息
+                logger.info(f"[LLM返回] Gemini API 响应成功, 耗时 {elapsed:.2f}s, 响应长度 {len(response_text)} 字符")
+                
+                # 记录响应预览（INFO级别）和完整响应（DEBUG级别）
+                response_preview = response_text[:300] + "..." if len(response_text) > 300 else response_text
+                logger.info(f"[LLM返回 预览]\n{response_preview}")
+                logger.debug(f"=== Gemini 完整响应 ({len(response_text)}字符) ===\n{response_text}\n=== End Response ===")
+                
+                # 尝试解析响应
+                try:
+                    result = self._parse_response(response_text, code, name)
+                    result.raw_response = response_text
+                    result.search_performed = bool(news_context)
+                    
+                    logger.info(f"[LLM解析] {name}({code}) 分析完成: {result.trend_prediction}, 评分 {result.sentiment_score}")
+                    return result
+                    
+                except JsonParseError as e:
+                    logger.warning(f"[JSON解析失败] 第 {json_attempt}/{max_json_retries} 次: {e}")
+                    if json_attempt >= max_json_retries:
+                        # 达到最大重试次数，使用文本提取作为兜底
+                        logger.error(f"[JSON重试] 达到最大重试次数 {max_json_retries}，使用文本提取兜底")
+                        result = self._parse_text_response(last_response_text, code, name)
+                        result.raw_response = last_response_text
+                        result.search_performed = bool(news_context)
+                        return result
+                    # 继续重试
+                    time.sleep(1)  # 短暂等待后重试
             
-            # 记录响应预览（INFO级别）和完整响应（DEBUG级别）
-            response_preview = response_text[:300] + "..." if len(response_text) > 300 else response_text
-            logger.info(f"[LLM返回 预览]\n{response_preview}")
-            logger.debug(f"=== Gemini 完整响应 ({len(response_text)}字符) ===\n{response_text}\n=== End Response ===")
-            
-            # 解析响应
-            result = self._parse_response(response_text, code, name)
-            result.raw_response = response_text
-            result.search_performed = bool(news_context)
-            
-            logger.info(f"[LLM解析] {name}({code}) 分析完成: {result.trend_prediction}, 评分 {result.sentiment_score}")
-            
-            return result
+            # 理论上不会执行到这里
+            return self._parse_text_response(last_response_text, code, name)
             
         except Exception as e:
             logger.error(f"AI 分析 {name}({code}) 失败: {e}")
@@ -1221,13 +1263,13 @@ class GeminiAnalyzer:
                     success=True,
                 )
             else:
-                # 没有找到 JSON，尝试从纯文本中提取信息
-                logger.warning(f"无法从响应中提取 JSON，使用原始文本分析")
-                return self._parse_text_response(response_text, code, name)
+                # 没有找到 JSON，抛出异常触发重试
+                logger.warning(f"无法从响应中提取 JSON")
+                raise JsonParseError("响应中未找到有效的 JSON 结构", response_text)
                 
         except json.JSONDecodeError as e:
-            logger.warning(f"JSON 解析失败: {e}，尝试从文本提取")
-            return self._parse_text_response(response_text, code, name)
+            logger.warning(f"JSON 解析失败: {e}")
+            raise JsonParseError(f"JSON 解析失败: {e}", response_text)
     
     def _fix_json_string(self, json_str: str) -> str:
         """修复常见的 JSON 格式问题"""
