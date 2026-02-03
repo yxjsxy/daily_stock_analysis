@@ -29,7 +29,8 @@ EVAL_DIR = PROJECT_DIR / "evaluations"
 EVAL_DIR.mkdir(exist_ok=True)
 
 # 模拟交易配置
-SHARES_PER_STOCK = 1000  # 每只股票假定持仓
+SHARES_PER_STOCK = 1000  # 每只股票初始持仓
+INITIAL_CASH = 10000     # 初始现金 ¥10,000
 
 # Gemini API
 GEMINI_API_KEY = os.environ.get("GOOGLE_API_KEY", "AIzaSyCwMjBNpGvdURI1NJJB30AvwEWn9NzFw5Q")
@@ -97,6 +98,7 @@ class EvaluationResult:
     predictions: list
     actual: ActualResult
     trade_sim: Optional[TradeSimulation]
+    discrepancies: List[PredictionDiscrepancy]
     direction_correct: bool
     target_hit: bool
     stop_hit: bool
@@ -259,13 +261,25 @@ def get_actual_results(stock_code: str, start_date: str, end_date: str) -> Optio
     return None
 
 
+@dataclass
+class PredictionDiscrepancy:
+    """预测与实盘不符的记录"""
+    date: str
+    predicted_action: str
+    predicted_score: int
+    predicted_trend: str
+    actual_move: float  # 实际涨跌幅
+    discrepancy_type: str  # 方向错误/目标未达/止损未触发等
+    loss_caused: float  # 因此造成的损失
+
+
 def simulate_trading(predictions: List[Prediction], actual: ActualResult) -> TradeSimulation:
     """
-    模拟交易：假定周初持有1000股，根据每日预测执行操作
+    模拟交易：周初持有1000股 + ¥10,000现金
     
     规则：
-    - 买入信号：如果空仓则全仓买入，已有仓位则持有
-    - 卖出信号：如果有仓位则全部卖出
+    - 买入信号 + 有现金：用现金买入
+    - 卖出信号 + 有仓位：卖出持仓
     - 观望信号：维持现状
     """
     if not predictions or not actual:
@@ -274,12 +288,14 @@ def simulate_trading(predictions: List[Prediction], actual: ActualResult) -> Tra
     stock_name = predictions[0].stock_name
     stock_code = predictions[0].stock_code
     
-    # 初始状态：持有1000股
+    # 初始状态：持有1000股 + ¥10,000现金
     shares = SHARES_PER_STOCK
     initial_price = actual.start_price
-    initial_value = shares * initial_price
+    initial_shares_value = shares * initial_price
+    cash = INITIAL_CASH
+    initial_total_value = initial_shares_value + cash
     
-    cash = 0  # 卖出后的现金
+    cost_basis = initial_price  # 持仓成本
     realized_pnl = 0
     trades = []
     
@@ -297,9 +313,10 @@ def simulate_trading(predictions: List[Prediction], actual: ActualResult) -> Tra
             continue
         
         if action == 'SELL' and shares > 0:
-            # 卖出
+            # 卖出全部持仓
             sell_value = shares * current_price
-            realized_pnl += sell_value - (shares * initial_price)
+            trade_pnl = (current_price - cost_basis) * shares
+            realized_pnl += trade_pnl
             cash += sell_value
             trades.append({
                 'date': pred.date,
@@ -307,46 +324,152 @@ def simulate_trading(predictions: List[Prediction], actual: ActualResult) -> Tra
                 'shares': shares,
                 'price': current_price,
                 'value': sell_value,
+                'pnl': trade_pnl,
                 'reason': pred.operation_advice
             })
             shares = 0
             
-        elif action == 'BUY' and shares == 0 and cash > 0:
-            # 买入
-            shares = int(cash / current_price)
-            buy_value = shares * current_price
-            cash -= buy_value
-            trades.append({
-                'date': pred.date,
-                'action': 'BUY',
-                'shares': shares,
-                'price': current_price,
-                'value': buy_value,
-                'reason': pred.operation_advice
-            })
+        elif action == 'BUY' and cash > 0:
+            # 用现金买入
+            buy_shares = int(cash / current_price)
+            if buy_shares > 0:
+                buy_value = buy_shares * current_price
+                # 更新成本基础 (加权平均)
+                if shares > 0:
+                    cost_basis = (cost_basis * shares + current_price * buy_shares) / (shares + buy_shares)
+                else:
+                    cost_basis = current_price
+                shares += buy_shares
+                cash -= buy_value
+                trades.append({
+                    'date': pred.date,
+                    'action': 'BUY',
+                    'shares': buy_shares,
+                    'price': current_price,
+                    'value': buy_value,
+                    'pnl': 0,
+                    'reason': pred.operation_advice
+                })
     
     # 计算最终价值
     final_price = actual.end_price
     final_shares_value = shares * final_price if shares > 0 else 0
-    final_value = final_shares_value + cash
+    final_total_value = final_shares_value + cash
     
-    unrealized_pnl = (final_price - initial_price) * shares if shares > 0 else 0
-    total_pnl = final_value - initial_value
-    total_pnl_pct = (total_pnl / initial_value) * 100 if initial_value > 0 else 0
+    unrealized_pnl = (final_price - cost_basis) * shares if shares > 0 else 0
+    total_pnl = final_total_value - initial_total_value
+    total_pnl_pct = (total_pnl / initial_total_value) * 100 if initial_total_value > 0 else 0
     
     return TradeSimulation(
         stock_code=stock_code,
         stock_name=stock_name,
         initial_shares=SHARES_PER_STOCK,
-        initial_value=initial_value,
+        initial_value=initial_total_value,
         final_shares=shares,
-        final_value=final_value,
+        final_value=final_total_value,
         realized_pnl=realized_pnl,
         unrealized_pnl=unrealized_pnl,
         total_pnl=total_pnl,
         total_pnl_pct=total_pnl_pct,
         trades=trades
     )
+
+
+def find_discrepancies(predictions: List[Prediction], actual: ActualResult) -> List[PredictionDiscrepancy]:
+    """找出预测与实盘不符的地方"""
+    discrepancies = []
+    
+    if not predictions or not actual:
+        return discrepancies
+    
+    # 构建日期到价格变化的映射
+    daily_data = actual.daily_data
+    price_changes = {}
+    
+    for i, (date, open_p, high, low, close) in enumerate(daily_data):
+        if i > 0:
+            prev_close = daily_data[i-1][4]
+            change_pct = (close - prev_close) / prev_close * 100 if prev_close else 0
+        else:
+            change_pct = (close - open_p) / open_p * 100 if open_p else 0
+        price_changes[date] = {
+            'change_pct': change_pct,
+            'high': high,
+            'low': low,
+            'close': close
+        }
+    
+    for pred in predictions:
+        day_data = price_changes.get(pred.date)
+        if not day_data:
+            continue
+        
+        actual_change = day_data['change_pct']
+        action = pred.get_action()
+        
+        # 检查方向不符
+        if action == 'BUY' and actual_change < -3:
+            # 建议买入但当天跌超3%
+            discrepancies.append(PredictionDiscrepancy(
+                date=pred.date,
+                predicted_action=action,
+                predicted_score=pred.sentiment_score,
+                predicted_trend=pred.trend_prediction,
+                actual_move=actual_change,
+                discrepancy_type="买入信号后大跌",
+                loss_caused=actual_change * SHARES_PER_STOCK * pred.close_price / 100 if pred.close_price else 0
+            ))
+        
+        elif action == 'SELL' and actual_change > 3:
+            # 建议卖出但当天涨超3%
+            discrepancies.append(PredictionDiscrepancy(
+                date=pred.date,
+                predicted_action=action,
+                predicted_score=pred.sentiment_score,
+                predicted_trend=pred.trend_prediction,
+                actual_move=actual_change,
+                discrepancy_type="卖出信号后大涨",
+                loss_caused=actual_change * SHARES_PER_STOCK * pred.close_price / 100 if pred.close_price else 0
+            ))
+        
+        elif action == 'HOLD' and abs(actual_change) > 5:
+            # 建议观望但当天大波动
+            discrepancies.append(PredictionDiscrepancy(
+                date=pred.date,
+                predicted_action=action,
+                predicted_score=pred.sentiment_score,
+                predicted_trend=pred.trend_prediction,
+                actual_move=actual_change,
+                discrepancy_type="观望信号但大波动",
+                loss_caused=0
+            ))
+        
+        # 检查目标位/止损位
+        if pred.target_price and day_data['high'] >= pred.target_price:
+            if action != 'SELL':
+                discrepancies.append(PredictionDiscrepancy(
+                    date=pred.date,
+                    predicted_action=action,
+                    predicted_score=pred.sentiment_score,
+                    predicted_trend=pred.trend_prediction,
+                    actual_move=actual_change,
+                    discrepancy_type="触及目标位但未建议卖出",
+                    loss_caused=0
+                ))
+        
+        if pred.stop_loss and day_data['low'] <= pred.stop_loss:
+            if action != 'SELL':
+                discrepancies.append(PredictionDiscrepancy(
+                    date=pred.date,
+                    predicted_action=action,
+                    predicted_score=pred.sentiment_score,
+                    predicted_trend=pred.trend_prediction,
+                    actual_move=actual_change,
+                    discrepancy_type="触及止损位但未建议卖出",
+                    loss_caused=(pred.close_price - pred.stop_loss) * SHARES_PER_STOCK if pred.close_price else 0
+                ))
+    
+    return discrepancies
 
 
 def evaluate_predictions(predictions: list[Prediction], actual: ActualResult) -> EvaluationResult:
@@ -387,12 +510,18 @@ def evaluate_predictions(predictions: list[Prediction], actual: ActualResult) ->
         pnl_emoji = "📈" if trade_sim.total_pnl >= 0 else "📉"
         notes.append(f"{pnl_emoji} 模拟盈亏: ¥{trade_sim.total_pnl:,.2f} ({trade_sim.total_pnl_pct:+.2f}%)")
     
+    # 找出预测与实盘不符的地方
+    discrepancies = find_discrepancies(predictions, actual)
+    if discrepancies:
+        notes.append(f"⚠️ 发现 {len(discrepancies)} 处预测偏差")
+    
     return EvaluationResult(
         stock_code=predictions[0].stock_code,
         stock_name=predictions[0].stock_name,
         predictions=predictions,
         actual=actual,
         trade_sim=trade_sim,
+        discrepancies=discrepancies,
         direction_correct=direction_correct,
         target_hit=target_hit,
         stop_hit=stop_hit,
@@ -406,6 +535,7 @@ def generate_improvement_suggestions(evaluations: list[EvaluationResult]) -> str
     """使用 Gemini 生成改进建议"""
     summary_data = []
     total_pnl = 0
+    all_discrepancies = []
     
     for eval in evaluations:
         entry = {
@@ -421,6 +551,15 @@ def generate_improvement_suggestions(evaluations: list[EvaluationResult]) -> str
             entry["simulated_pnl_pct"] = f"{eval.trade_sim.total_pnl_pct:+.2f}%"
             entry["trades"] = eval.trade_sim.trades
             total_pnl += eval.trade_sim.total_pnl
+        
+        # 添加偏差信息
+        if eval.discrepancies:
+            entry["discrepancies"] = [
+                {"date": d.date, "type": d.discrepancy_type, "actual_move": f"{d.actual_move:+.2f}%"}
+                for d in eval.discrepancies
+            ]
+            all_discrepancies.extend(eval.discrepancies)
+        
         summary_data.append(entry)
     
     correct_count = sum(1 for e in evaluations if e.direction_correct)
@@ -436,7 +575,9 @@ def generate_improvement_suggestions(evaluations: list[EvaluationResult]) -> str
 - 方向正确率: {accuracy:.1f}%
 - 目标位触及: {sum(1 for e in evaluations if e.target_hit)}
 - 止损触发: {sum(1 for e in evaluations if e.stop_hit)}
+- 预测偏差次数: {len(all_discrepancies)}
 - **模拟总盈亏: ¥{total_pnl:,.2f}**
+- 初始配置: 每股票1000股 + ¥10,000现金
 
 请分析并给出：
 
@@ -530,7 +671,7 @@ def run_weekly_evaluation(weeks_ago: int = 0) -> str:
 
 **评估周期**: {start_date} ~ {end_date}
 **生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-**模拟初始持仓**: 每只股票 {SHARES_PER_STOCK} 股
+**模拟初始配置**: 每只股票 {SHARES_PER_STOCK} 股 + ¥{INITIAL_CASH:,} 现金
 
 ---
 
@@ -543,6 +684,7 @@ def run_weekly_evaluation(weeks_ago: int = 0) -> str:
 | 方向准确率 | **{accuracy:.1f}%** |
 | 目标位触及 | {sum(1 for e in evaluations if e.target_hit)} |
 | 止损触发 | {sum(1 for e in evaluations if e.stop_hit)} |
+| 预测偏差次数 | {sum(len(e.discrepancies) for e in evaluations)} |
 | **总模拟盈亏** | **¥{total_pnl:+,.2f}** |
 
 ---
@@ -584,8 +726,19 @@ def run_weekly_evaluation(weeks_ago: int = 0) -> str:
             if eval.trade_sim.trades:
                 report += "**交易记录**\n"
                 for trade in eval.trade_sim.trades:
-                    report += f"- {trade['date']}: {trade['action']} {trade['shares']}股 @ ¥{trade['price']:.2f} ({trade['reason']})\n"
+                    pnl_str = f", 盈亏 ¥{trade.get('pnl', 0):+,.2f}" if trade.get('pnl') else ""
+                    report += f"- {trade['date']}: {trade['action']} {trade['shares']}股 @ ¥{trade['price']:.2f}{pnl_str} ({trade['reason']})\n"
                 report += "\n"
+        
+        # 预测偏差分析
+        if eval.discrepancies:
+            report += f"""**⚠️ 预测偏差分析** ({len(eval.discrepancies)} 处)
+| 日期 | 偏差类型 | 预测操作 | 评分 | 实际涨跌 | 损失估算 |
+|------|---------|---------|------|---------|---------|
+"""
+            for disc in eval.discrepancies:
+                report += f"| {disc.date} | {disc.discrepancy_type} | {disc.predicted_action} | {disc.predicted_score} | {disc.actual_move:+.2f}% | ¥{disc.loss_caused:,.0f} |\n"
+            report += "\n"
         
         report += f"**评估备注**: {eval.evaluation_notes}\n\n---\n\n"
     
