@@ -1,0 +1,424 @@
+2026-02-04 16:04:01 | INFO     | root                 | 日志系统初始化完成，日志目录: /Users/karl/Documents/vibe_coding/daily_stock_analysis/logs
+2026-02-04 16:04:01 | INFO     | root                 | 常规日志: logs/stock_analysis_20260204.log
+2026-02-04 16:04:01 | INFO     | root                 | 调试日志: logs/stock_analysis_debug_20260204.log
+2026-02-04 16:04:01 | INFO     | __main__             | ============================================================
+2026-02-04 16:04:01 | INFO     | __main__             | A股自选股智能分析系统 启动
+2026-02-04 16:04:01 | INFO     | __main__             | 运行时间: 2026-02-04 16:04:01
+2026-02-04 16:04:01 | INFO     | __main__             | ============================================================
+2026-02-04 16:04:01 | INFO     | __main__             | 模式: 定时任务
+2026-02-04 16:04:01 | INFO     | __main__             | 每日执行时间: 16:00, 22:45
+2026-02-04 16:04:01 | INFO     | scheduler            | 已设置每日定时任务，执行时间: 16:00
+2026-02-04 16:04:01 | INFO     | scheduler            | 已设置每日定时任务，执行时间: 22:45
+2026-02-04 16:04:01 | INFO     | scheduler            | 共设置 2 个定时任务点
+2026-02-04 16:04:01 | INFO     | scheduler            | 立即执行一次任务...
+2026-02-04 16:04:01 | INFO     | scheduler            | ==================================================
+2026-02-04 16:04:01 | INFO     | scheduler            | 定时任务开始执行 - 2026-02-04 16:04:01
+2026-02-04 16:04:01 | INFO     | scheduler            | ==================================================
+2026-02-04 16:04:01 | INFO     | storage              | 数据库初始化完成: sqlite:////Users/karl/Documents/vibe_coding/daily_stock_analysis/data/stock_analysis.db
+2026-02-04 16:04:01 | INFO     | data_provider.tushare_fetcher | Tushare API 初始化成功
+2026-02-04 16:04:01 | INFO     | data_provider.tushare_fetcher | ✅ Tushare API 初始化成功，优先级: 0（最高）
+2026-02-04 16:04:01 | INFO     | data_provider.base   | 已初始化 5 个数据源（按优先级）: TushareFetcher(P0), BaostockFetcher(P2), AkshareFetcher(P3), EfinanceFetcher(P4), YfinanceFetcher(P5)
+/Users/karl/Documents/vibe_coding/daily_stock_analysis/analyzer.py:583: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+2026-02-04 16:04:02 | INFO     | analyzer             | Gemini 模型初始化成功 (模型: gemini-3-flash-preview)
+2026-02-04 16:04:02 | INFO     | notification         | 已配置 2 个通知渠道：企业微信, 飞书
+2026-02-04 16:04:02 | INFO     | search_service       | 已配置 Tavily 搜索，共 1 个 API Key
+2026-02-04 16:04:02 | INFO     | __main__             | 调度器初始化完成，最大并发数: 3
+2026-02-04 16:04:02 | INFO     | __main__             | 已启用趋势分析器 (MA5>MA10>MA20 多头判断)
+2026-02-04 16:04:02 | INFO     | __main__             | 已启用缠论分析器 (分型/笔/中枢/背驰/买卖点)
+2026-02-04 16:04:02 | INFO     | __main__             | 搜索服务已启用 (Tavily/SerpAPI)
+2026-02-04 16:04:02 | INFO     | __main__             | ===== 开始分析 3 只股票 =====
+2026-02-04 16:04:02 | INFO     | __main__             | 股票列表: 002300, 300751, 300666
+2026-02-04 16:04:02 | INFO     | __main__             | 并发数: 3, 模式: 完整分析
+2026-02-04 16:04:02 | INFO     | __main__             | ========== 开始处理 002300 ==========
+2026-02-04 16:04:02 | INFO     | __main__             | ========== 开始处理 300751 ==========
+2026-02-04 16:04:02 | INFO     | __main__             | ========== 开始处理 300666 ==========
+2026-02-04 16:04:02 | INFO     | __main__             | [300751] 开始从数据源获取数据...
+2026-02-04 16:04:02 | INFO     | __main__             | [300666] 开始从数据源获取数据...
+2026-02-04 16:04:02 | INFO     | __main__             | [002300] 开始从数据源获取数据...
+2026-02-04 16:04:02 | INFO     | data_provider.base   | 尝试使用 [TushareFetcher] 获取 300751...
+2026-02-04 16:04:02 | INFO     | data_provider.base   | 尝试使用 [TushareFetcher] 获取 300666...
+2026-02-04 16:04:02 | INFO     | data_provider.base   | [TushareFetcher] 获取 300751 数据: 2025-12-06 ~ 2026-02-04
+2026-02-04 16:04:02 | INFO     | data_provider.base   | 尝试使用 [TushareFetcher] 获取 002300...
+2026-02-04 16:04:02 | INFO     | data_provider.base   | [TushareFetcher] 获取 300666 数据: 2025-12-06 ~ 2026-02-04
+2026-02-04 16:04:02 | INFO     | data_provider.base   | [TushareFetcher] 获取 002300 数据: 2025-12-06 ~ 2026-02-04
+2026-02-04 16:04:04 | INFO     | data_provider.base   | [TushareFetcher] 300666 获取成功，共 37 条数据
+2026-02-04 16:04:04 | INFO     | data_provider.base   | [TushareFetcher] 成功获取 300666
+2026-02-04 16:04:04 | INFO     | storage              | 保存 300666 数据成功，新增 0 条
+2026-02-04 16:04:04 | INFO     | __main__             | [300666] 数据保存成功（来源: TushareFetcher，新增 0 条）
+2026-02-04 16:04:04 | INFO     | data_provider.base   | [TushareFetcher] 300751 获取成功，共 41 条数据
+2026-02-04 16:04:04 | INFO     | data_provider.base   | [TushareFetcher] 成功获取 300751
+2026-02-04 16:04:04 | INFO     | data_provider.base   | [TushareFetcher] 002300 获取成功，共 41 条数据
+2026-02-04 16:04:04 | INFO     | data_provider.base   | [TushareFetcher] 成功获取 002300
+2026-02-04 16:04:04 | INFO     | storage              | 保存 002300 数据成功，新增 1 条
+2026-02-04 16:04:04 | INFO     | __main__             | [002300] 数据保存成功（来源: TushareFetcher，新增 1 条）
+2026-02-04 16:04:04 | INFO     | storage              | 保存 300751 数据成功，新增 1 条
+2026-02-04 16:04:04 | INFO     | __main__             | [300751] 数据保存成功（来源: TushareFetcher，新增 1 条）
+login success!
+login success!
+login success!
+logout failed!
+[Errno 9] Bad file descriptor
+接收数据异常，请稍后再试。
+2026-02-04 16:04:06 | WARNING  | data_provider.baostock_fetcher | Baostock 登出异常: 网络接收错误。
+[Errno 9] Bad file descriptor
+接收数据异常，请稍后再试。
+2026-02-04 16:04:06 | WARNING  | data_provider.baostock_fetcher | Baostock 登出异常: 网络接收错误。
+2026-02-04 16:04:06 | WARNING  | data_provider.baostock_fetcher | Baostock 登出异常: 用户登出失败
+2026-02-04 16:04:06 | INFO     | __main__             | [002300] Baostock 获取股票名称成功: 迈为股份
+2026-02-04 16:04:06 | INFO     | __main__             | [300666] Tushare 获取股票名称成功: 江丰电子
+2026-02-04 16:04:07 | INFO     | data_provider.efinance_fetcher | [API调用] ef.stock.get_realtime_quotes() 获取实时行情...
+2026-02-04 16:04:09 | INFO     | data_provider.efinance_fetcher | [API调用] ef.stock.get_realtime_quotes() 获取实时行情...
+2026-02-04 16:04:09 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=30&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:04:10 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=17&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:04:10 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=15&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:04:10 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=35&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:04:10 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=19&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:04:10 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=16&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:04:10 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=18&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+Please wait for a moment:   0%|          | 0/69 [00:00<?, ?it/s]Please wait for a moment:   1%|▏         | 1/69 [00:00<01:07,  1.01it/s]2026-02-04 16:04:11 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=50&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:04:11 | INFO     | data_provider.efinance_fetcher | [API返回] ef.stock.get_realtime_quotes 成功: 返回 5806 只股票, 耗时 4.08s
+2026-02-04 16:04:11 | INFO     | data_provider.efinance_fetcher | [实时行情] 002300 太阳电缆: 价格=9.56, 涨跌=10.01%, 换手率=10.17%
+Please wait for a moment:   3%|▎         | 2/69 [00:01<00:58,  1.14it/s]2026-02-04 16:04:12 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=50&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:04:12 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=50&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+Please wait for a moment:   4%|▍         | 3/69 [00:02<00:58,  1.12it/s]Please wait for a moment:   6%|▌         | 4/69 [00:03<00:57,  1.13it/s]2026-02-04 16:04:13 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=50&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+Please wait for a moment:   7%|▋         | 5/69 [00:04<00:57,  1.12it/s]2026-02-04 16:04:15 | INFO     | data_provider.akshare_fetcher | [API调用] ak.stock_zh_a_spot_em() 获取A股实时行情... (attempt 1/2)
+2026-02-04 16:04:15 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=50&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+Please wait for a moment:   9%|▊         | 6/69 [00:05<00:56,  1.11it/s]2026-02-04 16:04:15 | ERROR    | data_provider.efinance_fetcher | [API错误] 获取 300666 实时行情失败: HTTPConnectionPool(host='push2.eastmoney.com', port=80): Max retries exceeded with url: /api/qt/clist/get?pn=50&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297 (Caused by ProtocolError('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))
+Please wait for a moment:  10%|█         | 7/69 [00:06<00:58,  1.06it/s]Please wait for a moment:  12%|█▏        | 8/69 [00:07<00:57,  1.07it/s]Please wait for a moment:  13%|█▎        | 9/69 [00:08<00:53,  1.11it/s]Please wait for a moment:  14%|█▍        | 10/69 [00:08<00:51,  1.14it/s]Please wait for a moment:  16%|█▌        | 11/69 [00:09<00:51,  1.12it/s]Please wait for a moment:  17%|█▋        | 12/69 [00:10<00:53,  1.07it/s]2026-02-04 16:04:21 | INFO     | data_provider.akshare_fetcher | [API调用] ak.stock_zh_a_spot_em() 获取A股实时行情... (attempt 1/2)
+Please wait for a moment:  19%|█▉        | 13/69 [00:11<00:52,  1.06it/s]2026-02-04 16:04:22 | WARNING  | data_provider.akshare_fetcher | [API错误] ak.stock_zh_a_spot_em 获取失败 (attempt 1/2): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+Please wait for a moment:  20%|██        | 14/69 [00:12<00:52,  1.05it/s]Please wait for a moment:  22%|██▏       | 15/69 [00:13<00:51,  1.05it/s]Please wait for a moment:  23%|██▎       | 16/69 [00:14<00:50,  1.05it/s]Please wait for a moment:  25%|██▍       | 17/69 [00:15<00:49,  1.05it/s]Please wait for a moment:  26%|██▌       | 18/69 [00:16<00:48,  1.06it/s]Please wait for a moment:  28%|██▊       | 19/69 [00:17<00:47,  1.06it/s]2026-02-04 16:04:28 | INFO     | data_provider.akshare_fetcher | [API调用] ak.stock_zh_a_spot_em() 获取A股实时行情... (attempt 2/2)
+2026-02-04 16:04:28 | WARNING  | data_provider.akshare_fetcher | [API错误] ak.stock_zh_a_spot_em 获取失败 (attempt 1/2): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+Please wait for a moment:  29%|██▉       | 20/69 [00:18<00:44,  1.10it/s]Please wait for a moment:  30%|███       | 21/69 [00:19<00:44,  1.08it/s]Please wait for a moment:  32%|███▏      | 22/69 [00:20<00:43,  1.07it/s]Please wait for a moment:  33%|███▎      | 23/69 [00:21<00:42,  1.07it/s]Please wait for a moment:  35%|███▍      | 24/69 [00:22<00:41,  1.08it/s]Please wait for a moment:  36%|███▌      | 25/69 [00:23<00:40,  1.08it/s]Please wait for a moment:  38%|███▊      | 26/69 [00:24<00:41,  1.05it/s]2026-02-04 16:04:34 | INFO     | data_provider.akshare_fetcher | [API调用] ak.stock_zh_a_spot_em() 获取A股实时行情... (attempt 2/2)
+Please wait for a moment:  39%|███▉      | 27/69 [00:24<00:38,  1.09it/s]Please wait for a moment:  41%|████      | 28/69 [00:25<00:36,  1.12it/s]Please wait for a moment:  42%|████▏     | 29/69 [00:26<00:34,  1.15it/s]2026-02-04 16:04:36 | WARNING  | data_provider.akshare_fetcher | [API错误] ak.stock_zh_a_spot_em 获取失败 (attempt 2/2): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+Please wait for a moment:  43%|████▎     | 30/69 [00:27<00:34,  1.14it/s]Please wait for a moment:  45%|████▍     | 31/69 [00:28<00:35,  1.08it/s]Please wait for a moment:  46%|████▋     | 32/69 [00:29<00:35,  1.05it/s]Please wait for a moment:  48%|████▊     | 33/69 [00:30<00:34,  1.05it/s]2026-02-04 16:04:41 | ERROR    | data_provider.akshare_fetcher | [API错误] ak.stock_zh_a_spot_em 最终失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:04:41 | WARNING  | data_provider.akshare_fetcher | [实时行情] A股实时行情数据为空，跳过 002300
+Please wait for a moment:  49%|████▉     | 34/69 [00:31<00:32,  1.09it/s]2026-02-04 16:04:41 | WARNING  | data_provider.akshare_fetcher | [API错误] ak.stock_zh_a_spot_em 获取失败 (attempt 2/2): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+Please wait for a moment:  51%|█████     | 35/69 [00:32<00:32,  1.03it/s]Please wait for a moment:  52%|█████▏    | 36/69 [00:33<00:31,  1.06it/s]Please wait for a moment:  54%|█████▎    | 37/69 [00:34<00:30,  1.05it/s]Please wait for a moment:  55%|█████▌    | 38/69 [00:35<00:29,  1.06it/s]2026-02-04 16:04:45 | INFO     | data_provider.akshare_fetcher | [API调用] ak.stock_cyq_em(symbol=002300) 获取筹码分布...
+2026-02-04 16:04:46 | ERROR    | data_provider.akshare_fetcher | [API错误] ak.stock_zh_a_spot_em 最终失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:04:46 | WARNING  | data_provider.akshare_fetcher | [实时行情] A股实时行情数据为空，跳过 300666
+Please wait for a moment:  57%|█████▋    | 39/69 [00:36<00:27,  1.10it/s]Please wait for a moment:  58%|█████▊    | 40/69 [00:36<00:25,  1.14it/s]2026-02-04 16:04:47 | INFO     | data_provider.akshare_fetcher | [API返回] ak.stock_cyq_em 成功: 返回 90 天数据, 耗时 1.56s
+2026-02-04 16:04:47 | INFO     | data_provider.akshare_fetcher | [筹码分布] 002300 日期=2026-02-04: 获利比例=48.9%, 平均成本=9.59, 90%集中度=9.72%, 70%集中度=7.48%
+2026-02-04 16:04:47 | INFO     | __main__             | [002300] 筹码分布: 获利比例=48.9%, 90%集中度=9.72%
+2026-02-04 16:04:47 | INFO     | __main__             | [002300] 开始多维度情报搜索...
+2026-02-04 16:04:47 | INFO     | search_service       | 开始多维度情报搜索: 迈为股份(002300)
+2026-02-04 16:04:47 | INFO     | search_service       | [情报搜索] 最新消息: 使用 Tavily
+Please wait for a moment:  59%|█████▉    | 41/69 [00:37<00:25,  1.09it/s]Please wait for a moment:  61%|██████    | 42/69 [00:38<00:23,  1.13it/s]2026-02-04 16:04:49 | INFO     | search_service       | [Tavily] 搜索完成，query='迈为股份 002300 最新 新闻 2026年1月', 返回 3 条结果
+2026-02-04 16:04:49 | INFO     | search_service       | [Tavily] 搜索 '迈为股份 002300 最新 新闻 2026年1月' 成功，返回 3 条结果，耗时 2.14s
+2026-02-04 16:04:49 | INFO     | search_service       | [情报搜索] 最新消息: 获取 3 条结果
+Please wait for a moment:  62%|██████▏   | 43/69 [00:39<00:22,  1.17it/s]2026-02-04 16:04:49 | INFO     | search_service       | [情报搜索] 风险排查: 使用 Tavily
+Please wait for a moment:  64%|██████▍   | 44/69 [00:40<00:21,  1.18it/s]2026-02-04 16:04:50 | INFO     | data_provider.akshare_fetcher | [API调用] ak.stock_cyq_em(symbol=300666) 获取筹码分布...
+Please wait for a moment:  65%|██████▌   | 45/69 [00:41<00:20,  1.18it/s]2026-02-04 16:04:51 | INFO     | search_service       | [Tavily] 搜索完成，query='迈为股份 减持 处罚 利空 风险', 返回 3 条结果
+2026-02-04 16:04:51 | INFO     | search_service       | [Tavily] 搜索 '迈为股份 减持 处罚 利空 风险' 成功，返回 3 条结果，耗时 1.62s
+2026-02-04 16:04:51 | INFO     | search_service       | [情报搜索] 风险排查: 获取 3 条结果
+2026-02-04 16:04:51 | INFO     | data_provider.akshare_fetcher | [API返回] ak.stock_cyq_em 成功: 返回 90 天数据, 耗时 0.91s
+2026-02-04 16:04:51 | INFO     | data_provider.akshare_fetcher | [筹码分布] 300666 日期=2026-01-29: 获利比例=38.5%, 平均成本=117.3, 90%集中度=18.86%, 70%集中度=14.61%
+2026-02-04 16:04:51 | INFO     | __main__             | [300666] 筹码分布: 获利比例=38.5%, 90%集中度=18.86%
+2026-02-04 16:04:51 | INFO     | __main__             | [300666] 开始多维度情报搜索...
+2026-02-04 16:04:51 | INFO     | search_service       | 开始多维度情报搜索: 江丰电子(300666)
+2026-02-04 16:04:51 | INFO     | search_service       | [情报搜索] 最新消息: 使用 Tavily
+2026-02-04 16:04:52 | INFO     | search_service       | [情报搜索] 业绩预期: 使用 Tavily
+Please wait for a moment:  67%|██████▋   | 46/69 [00:42<00:20,  1.15it/s]Please wait for a moment:  68%|██████▊   | 47/69 [00:42<00:19,  1.14it/s]Please wait for a moment:  70%|██████▉   | 48/69 [00:43<00:18,  1.12it/s]2026-02-04 16:04:54 | INFO     | search_service       | [Tavily] 搜索完成，query='迈为股份 年报预告 业绩预告 业绩快报 2025年报', 返回 3 条结果
+2026-02-04 16:04:54 | INFO     | search_service       | [Tavily] 搜索 '迈为股份 年报预告 业绩预告 业绩快报 2025年报' 成功，返回 3 条结果，耗时 2.08s
+2026-02-04 16:04:54 | INFO     | search_service       | [情报搜索] 业绩预期: 获取 3 条结果
+2026-02-04 16:04:54 | INFO     | search_service       | [Tavily] 搜索完成，query='江丰电子 300666 最新 新闻 2026年1月', 返回 3 条结果
+2026-02-04 16:04:54 | INFO     | search_service       | [Tavily] 搜索 '江丰电子 300666 最新 新闻 2026年1月' 成功，返回 3 条结果，耗时 2.53s
+2026-02-04 16:04:54 | INFO     | search_service       | [情报搜索] 最新消息: 获取 3 条结果
+2026-02-04 16:04:54 | INFO     | __main__             | [002300] 情报搜索完成: 共 9 条结果
+2026-02-04 16:04:54 | INFO     | search_service       | [情报搜索] 风险排查: 使用 Tavily
+Please wait for a moment:  71%|███████   | 49/69 [00:44<00:17,  1.14it/s]Please wait for a moment:  72%|███████▏  | 50/69 [00:45<00:17,  1.11it/s]2026-02-04 16:04:56 | INFO     | search_service       | [Tavily] 搜索完成，query='江丰电子 减持 处罚 利空 风险', 返回 3 条结果
+2026-02-04 16:04:56 | INFO     | search_service       | [Tavily] 搜索 '江丰电子 减持 处罚 利空 风险' 成功，返回 3 条结果，耗时 1.74s
+2026-02-04 16:04:56 | INFO     | search_service       | [情报搜索] 风险排查: 获取 3 条结果
+2026-02-04 16:04:56 | INFO     | analyzer             | ========== AI 分析 迈为股份(002300) ==========
+Please wait for a moment:  74%|███████▍  | 51/69 [00:46<00:16,  1.09it/s]2026-02-04 16:04:56 | INFO     | analyzer             | [LLM配置] 模型: gemini-3-flash-preview
+2026-02-04 16:04:56 | INFO     | analyzer             | [LLM配置] Prompt 长度: 2971 字符
+2026-02-04 16:04:56 | INFO     | analyzer             | [LLM配置] 是否包含新闻: 是
+2026-02-04 16:04:56 | INFO     | analyzer             | [LLM Prompt 预览]
+# 决策仪表盘分析请求
+
+## 📊 股票基础信息
+| 项目 | 数据 |
+|------|------|
+| 股票代码 | **002300** |
+| 股票名称 | **迈为股份** |
+| 分析日期 | 2026-02-04 |
+
+---
+
+## 📈 技术面数据
+
+### 今日行情
+| 指标 | 数值 |
+|------|------|
+| 收盘价 | 9.56 元 |
+| 开盘价 | 8.7 元 |
+| 最高价 | 9.56 元 |
+| 最低价 | 8.64 元 |
+| 涨跌幅 | 10.0115% |
+| 成交量 | 7343.07 万股 |
+| 成交额 | 6.92 亿元 |
+
+### 均线系统（关键判断指标）
+| 均线 | 数值 | 说明 |
+|------|------|------|
+| MA5 | 8.77 | 短期趋势线 |
+| MA10 | 8.99 | 中短期趋势线 |
+| MA20 | 9.4 | 中期趋势线 |
+| 均线形态 | 震荡整理 ↔️ | 多头/空头/缠绕 |
+
+### 筹码分布数据（效率指标）
+| 指标 | 数值 | 健康标准 |
+|------...
+2026-02-04 16:04:56 | INFO     | analyzer             | [LLM调用] 开始调用 Gemini API (temperature=0.7, max_tokens=8192)...
+2026-02-04 16:04:57 | INFO     | search_service       | [情报搜索] 业绩预期: 使用 Tavily
+Please wait for a moment:  75%|███████▌  | 52/69 [00:47<00:14,  1.14it/s]Please wait for a moment:  77%|███████▋  | 53/69 [00:48<00:14,  1.10it/s]2026-02-04 16:04:59 | INFO     | search_service       | [Tavily] 搜索完成，query='江丰电子 年报预告 业绩预告 业绩快报 2025年报', 返回 3 条结果
+2026-02-04 16:04:59 | INFO     | search_service       | [Tavily] 搜索 '江丰电子 年报预告 业绩预告 业绩快报 2025年报' 成功，返回 3 条结果，耗时 2.08s
+2026-02-04 16:04:59 | INFO     | search_service       | [情报搜索] 业绩预期: 获取 3 条结果
+Please wait for a moment:  78%|███████▊  | 54/69 [00:49<00:14,  1.06it/s]2026-02-04 16:04:59 | INFO     | __main__             | [300666] 情报搜索完成: 共 9 条结果
+Please wait for a moment:  80%|███████▉  | 55/69 [00:50<00:13,  1.03it/s]Please wait for a moment:  81%|████████  | 56/69 [00:51<00:12,  1.06it/s]2026-02-04 16:05:01 | INFO     | analyzer             | ========== AI 分析 江丰电子(300666) ==========
+2026-02-04 16:05:01 | INFO     | analyzer             | [LLM配置] 模型: gemini-3-flash-preview
+2026-02-04 16:05:01 | INFO     | analyzer             | [LLM配置] Prompt 长度: 2998 字符
+2026-02-04 16:05:01 | INFO     | analyzer             | [LLM配置] 是否包含新闻: 是
+2026-02-04 16:05:01 | INFO     | analyzer             | [LLM Prompt 预览]
+# 决策仪表盘分析请求
+
+## 📊 股票基础信息
+| 项目 | 数据 |
+|------|------|
+| 股票代码 | **300666** |
+| 股票名称 | **江丰电子** |
+| 分析日期 | 2026-01-29 |
+
+---
+
+## 📈 技术面数据
+
+### 今日行情
+| 指标 | 数值 |
+|------|------|
+| 收盘价 | 113.48 元 |
+| 开盘价 | 118.98 元 |
+| 最高价 | 119.7 元 |
+| 最低价 | 113.47 元 |
+| 涨跌幅 | -4.2767% |
+| 成交量 | 1174.73 万股 |
+| 成交额 | 13.59 亿元 |
+
+### 均线系统（关键判断指标）
+| 均线 | 数值 | 说明 |
+|------|------|------|
+| MA5 | 118.29 | 短期趋势线 |
+| MA10 | 122.25 | 中短期趋势线 |
+| MA20 | 116.88 | 中期趋势线 |
+| 均线形态 | 短期走弱 🔽 | 多头/空头/缠绕 |
+
+### 筹码分布数据（效率指标）
+| 指标 | 数值 |...
+2026-02-04 16:05:01 | INFO     | analyzer             | [LLM调用] 开始调用 Gemini API (temperature=0.7, max_tokens=8192)...
+Please wait for a moment:  83%|████████▎ | 57/69 [00:52<00:11,  1.06it/s]Please wait for a moment:  84%|████████▍ | 58/69 [00:53<00:10,  1.04it/s]Please wait for a moment:  86%|████████▌ | 59/69 [00:54<00:09,  1.01it/s]Please wait for a moment:  87%|████████▋ | 60/69 [00:55<00:08,  1.00it/s]Please wait for a moment:  88%|████████▊ | 61/69 [00:56<00:07,  1.02it/s]Please wait for a moment:  90%|████████▉ | 62/69 [00:57<00:06,  1.01it/s]Please wait for a moment:  91%|█████████▏| 63/69 [00:58<00:05,  1.00it/s]Please wait for a moment:  93%|█████████▎| 64/69 [00:59<00:04,  1.06it/s]Please wait for a moment:  94%|█████████▍| 65/69 [01:00<00:03,  1.09it/s]Please wait for a moment:  96%|█████████▌| 66/69 [01:00<00:02,  1.13it/s]Please wait for a moment:  97%|█████████▋| 67/69 [01:01<00:01,  1.11it/s]Please wait for a moment:  99%|█████████▊| 68/69 [01:02<00:00,  1.12it/s]Please wait for a moment: 100%|██████████| 69/69 [01:03<00:00,  1.12it/s]                                                                         2026-02-04 16:05:16 | INFO     | data_provider.efinance_fetcher | [API调用] ef.stock.get_realtime_quotes() 获取实时行情...
+2026-02-04 16:05:16 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:05:17 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:05:18 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:05:18 | INFO     | analyzer             | [LLM返回] Gemini API 响应成功, 耗时 21.46s, 响应长度 4151 字符
+2026-02-04 16:05:18 | INFO     | analyzer             | [LLM返回 预览]
+```json
+{
+    "sentiment_score": 72,
+    "trend_prediction": "看多",
+    "operation_advice": "买入",
+    "confidence_level": "中",
+    
+    "dashboard": {
+        "core_conclusion": {
+            "one_sentence": "缠论底分型确认+放量一阳穿三线，底背驰信号显现，建议回踩买入。",
+            "signal_type": "🟢买入信号",
+            "time_sens...
+2026-02-04 16:05:18 | INFO     | analyzer             | [LLM解析] 迈为股份(002300) 分析完成: 看多, 评分 72
+2026-02-04 16:05:18 | INFO     | __main__             | [002300] 分析完成: 买入, 评分 72
+2026-02-04 16:05:19 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:05:20 | WARNING  | urllib3.connectionpool | Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297
+2026-02-04 16:05:21 | ERROR    | data_provider.efinance_fetcher | [API错误] 获取 300751 实时行情失败: HTTPConnectionPool(host='push2.eastmoney.com', port=80): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f12%2Cf14%2Cf3%2Cf2%2Cf15%2Cf16%2Cf17%2Cf4%2Cf8%2Cf10%2Cf9%2Cf5%2Cf6%2Cf18%2Cf20%2Cf21%2Cf13%2Cf124%2Cf297 (Caused by ProtocolError('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))
+2026-02-04 16:05:24 | INFO     | analyzer             | [LLM返回] Gemini API 响应成功, 耗时 23.04s, 响应长度 4444 字符
+2026-02-04 16:05:24 | INFO     | analyzer             | [LLM返回 预览]
+```json
+{
+    "sentiment_score": 42,
+    "trend_prediction": "看空",
+    "operation_advice": "观望",
+    "confidence_level": "中",
+    
+    "dashboard": {
+        "core_conclusion": {
+            "one_sentence": "价格放量跌破中枢下沿，处于下降笔且无买点，明日停牌重组，建议观望。",
+            "signal_type": "🟡持有观望",
+            "time_se...
+2026-02-04 16:05:24 | INFO     | analyzer             | [LLM解析] 江丰电子(300666) 分析完成: 看空, 评分 42
+2026-02-04 16:05:24 | INFO     | __main__             | [300666] 分析完成: 观望, 评分 42
+2026-02-04 16:05:26 | INFO     | data_provider.akshare_fetcher | [API调用] ak.stock_zh_a_spot_em() 获取A股实时行情... (attempt 1/2)
+2026-02-04 16:05:35 | WARNING  | data_provider.akshare_fetcher | [API错误] ak.stock_zh_a_spot_em 获取失败 (attempt 1/2): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:05:41 | INFO     | data_provider.akshare_fetcher | [API调用] ak.stock_zh_a_spot_em() 获取A股实时行情... (attempt 2/2)
+2026-02-04 16:05:48 | WARNING  | data_provider.akshare_fetcher | [API错误] ak.stock_zh_a_spot_em 获取失败 (attempt 2/2): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:05:52 | ERROR    | data_provider.akshare_fetcher | [API错误] ak.stock_zh_a_spot_em 最终失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:05:52 | WARNING  | data_provider.akshare_fetcher | [实时行情] A股实时行情数据为空，跳过 300751
+2026-02-04 16:05:52 | WARNING  | __main__             | [300751] 无法获取股票名称，使用默认名称
+2026-02-04 16:05:55 | INFO     | data_provider.akshare_fetcher | [API调用] ak.stock_cyq_em(symbol=300751) 获取筹码分布...
+2026-02-04 16:05:56 | INFO     | data_provider.akshare_fetcher | [API返回] ak.stock_cyq_em 成功: 返回 90 天数据, 耗时 0.95s
+2026-02-04 16:05:56 | INFO     | data_provider.akshare_fetcher | [筹码分布] 300751 日期=2026-02-04: 获利比例=64.3%, 平均成本=315.05, 90%集中度=38.40%, 70%集中度=26.88%
+2026-02-04 16:05:56 | INFO     | __main__             | [300751] 筹码分布: 获利比例=64.3%, 90%集中度=38.40%
+2026-02-04 16:05:56 | INFO     | __main__             | [300751] 开始多维度情报搜索...
+2026-02-04 16:05:56 | INFO     | search_service       | 开始多维度情报搜索: 股票300751(300751)
+2026-02-04 16:05:56 | INFO     | search_service       | [情报搜索] 最新消息: 使用 Tavily
+2026-02-04 16:05:58 | INFO     | search_service       | [Tavily] 搜索完成，query='股票300751 300751 最新 新闻 2026年1月', 返回 3 条结果
+2026-02-04 16:05:58 | INFO     | search_service       | [Tavily] 搜索 '股票300751 300751 最新 新闻 2026年1月' 成功，返回 3 条结果，耗时 1.84s
+2026-02-04 16:05:58 | INFO     | search_service       | [情报搜索] 最新消息: 获取 3 条结果
+2026-02-04 16:05:59 | INFO     | search_service       | [情报搜索] 风险排查: 使用 Tavily
+2026-02-04 16:06:01 | INFO     | search_service       | [Tavily] 搜索完成，query='股票300751 减持 处罚 利空 风险', 返回 3 条结果
+2026-02-04 16:06:01 | INFO     | search_service       | [Tavily] 搜索 '股票300751 减持 处罚 利空 风险' 成功，返回 3 条结果，耗时 2.81s
+2026-02-04 16:06:01 | INFO     | search_service       | [情报搜索] 风险排查: 获取 3 条结果
+2026-02-04 16:06:02 | INFO     | search_service       | [情报搜索] 业绩预期: 使用 Tavily
+2026-02-04 16:06:05 | INFO     | search_service       | [Tavily] 搜索完成，query='股票300751 年报预告 业绩预告 业绩快报 2025年报', 返回 3 条结果
+2026-02-04 16:06:05 | INFO     | search_service       | [Tavily] 搜索 '股票300751 年报预告 业绩预告 业绩快报 2025年报' 成功，返回 3 条结果，耗时 2.82s
+2026-02-04 16:06:05 | INFO     | search_service       | [情报搜索] 业绩预期: 获取 3 条结果
+2026-02-04 16:06:05 | INFO     | __main__             | [300751] 情报搜索完成: 共 9 条结果
+2026-02-04 16:06:07 | INFO     | analyzer             | ========== AI 分析 股票300751(300751) ==========
+2026-02-04 16:06:07 | INFO     | analyzer             | [LLM配置] 模型: gemini-3-flash-preview
+2026-02-04 16:06:07 | INFO     | analyzer             | [LLM配置] Prompt 长度: 2972 字符
+2026-02-04 16:06:07 | INFO     | analyzer             | [LLM配置] 是否包含新闻: 是
+2026-02-04 16:06:07 | INFO     | analyzer             | [LLM Prompt 预览]
+# 决策仪表盘分析请求
+
+## 📊 股票基础信息
+| 项目 | 数据 |
+|------|------|
+| 股票代码 | **300751** |
+| 股票名称 | **股票300751** |
+| 分析日期 | 2026-02-04 |
+
+---
+
+## 📈 技术面数据
+
+### 今日行情
+| 指标 | 数值 |
+|------|------|
+| 收盘价 | 328.6 元 |
+| 开盘价 | 337.0 元 |
+| 最高价 | 343.99 元 |
+| 最低价 | 316.0 元 |
+| 涨跌幅 | -1.9104% |
+| 成交量 | 1783.48 万股 |
+| 成交额 | 58.66 亿元 |
+
+### 均线系统（关键判断指标）
+| 均线 | 数值 | 说明 |
+|------|------|------|
+| MA5 | 320.81 | 短期趋势线 |
+| MA10 | 324.55 | 中短期趋势线 |
+| MA20 | 278.11 | 中期趋势线 |
+| 均线形态 | 震荡整理 ↔️ | 多头/空头/缠绕 |
+
+### 筹码分布数据（效率指标）
+| 指标 | 数...
+2026-02-04 16:06:07 | INFO     | analyzer             | [LLM调用] 开始调用 Gemini API (temperature=0.7, max_tokens=8192)...
+2026-02-04 16:06:31 | INFO     | analyzer             | [LLM返回] Gemini API 响应成功, 耗时 23.71s, 响应长度 4153 字符
+2026-02-04 16:06:31 | INFO     | analyzer             | [LLM返回 预览]
+```json
+{
+    "sentiment_score": 48,
+    "trend_prediction": "震荡看空",
+    "operation_advice": "减仓/观望",
+    "confidence_level": "中",
+    
+    "dashboard": {
+        "core_conclusion": {
+            "one_sentence": "高位类顶背驰伴随实控人减持利空，短期趋势走弱，建议逢高减仓。",
+            "signal_type": "🔴卖出信号",
+            "time_...
+2026-02-04 16:06:31 | INFO     | analyzer             | [LLM解析] 股票300751(300751) 分析完成: 震荡看空, 评分 48
+2026-02-04 16:06:31 | INFO     | __main__             | [300751] 分析完成: 减仓/观望, 评分 48
+2026-02-04 16:06:31 | INFO     | __main__             | ===== 分析完成 =====
+2026-02-04 16:06:31 | INFO     | __main__             | 成功: 3, 失败: 0, 耗时: 148.86 秒
+2026-02-04 16:06:31 | INFO     | __main__             | 生成决策仪表盘日报...
+2026-02-04 16:06:31 | INFO     | notification         | 日报已保存到: /Users/karl/Documents/vibe_coding/daily_stock_analysis/reports/report_20260204.md
+2026-02-04 16:06:31 | INFO     | __main__             | 决策仪表盘日报已保存: /Users/karl/Documents/vibe_coding/daily_stock_analysis/reports/report_20260204.md
+2026-02-04 16:06:31 | INFO     | __main__             | 企业微信仪表盘长度: 1649 字符
+2026-02-04 16:06:32 | INFO     | notification         | 企业微信消息发送成功
+2026-02-04 16:06:33 | INFO     | notification         | 飞书消息发送成功
+2026-02-04 16:06:33 | INFO     | __main__             | 决策仪表盘推送成功
+2026-02-04 16:06:33 | INFO     | __main__             | 开始执行大盘复盘分析...
+2026-02-04 16:06:33 | INFO     | market_analyzer      | [大盘] Tushare API 初始化成功
+2026-02-04 16:06:33 | INFO     | market_analyzer      | ========== 开始大盘复盘分析 ==========
+2026-02-04 16:06:33 | INFO     | market_analyzer      | [大盘] 使用 Tushare 获取指数行情...
+2026-02-04 16:06:34 | WARNING  | market_analyzer      | [大盘] Tushare 积分不足，跳过指数接口
+2026-02-04 16:06:34 | WARNING  | market_analyzer      | [大盘] Tushare 获取指数失败，尝试 Akshare...
+2026-02-04 16:06:34 | INFO     | market_analyzer      | [大盘] 使用 Akshare 获取指数行情...
+  0%|          | 0/1 [00:00<?, ?it/s]                                     2026-02-04 16:06:38 | WARNING  | market_analyzer      | [大盘] 指数行情 获取失败 (attempt 1/2): Can not decode value starting with character '<'
+2026-02-04 16:06:38 | INFO     | market_analyzer      | [大盘] 等待 3.8s 后重试...
+  0%|          | 0/1 [00:00<?, ?it/s]                                     2026-02-04 16:06:44 | WARNING  | market_analyzer      | [大盘] 指数行情 获取失败 (attempt 2/2): Can not decode value starting with character '<'
+2026-02-04 16:06:44 | ERROR    | market_analyzer      | [大盘] 指数行情 最终失败: Can not decode value starting with character '<'
+2026-02-04 16:06:44 | INFO     | market_analyzer      | [大盘] 使用 Tushare 获取涨跌停统计...
+2026-02-04 16:06:44 | WARNING  | market_analyzer      | [大盘] Tushare 积分不足，跳过涨跌停接口
+2026-02-04 16:06:44 | WARNING  | market_analyzer      | [大盘] Tushare 获取统计失败，尝试 Akshare...
+2026-02-04 16:06:44 | INFO     | market_analyzer      | [大盘] 使用 Akshare 获取市场涨跌统计...
+Please wait for a moment:   0%|          | 0/1 [00:00<?, ?it/s]                                                               2026-02-04 16:06:47 | WARNING  | market_analyzer      | [大盘] A股实时行情-新浪 获取失败 (attempt 1/2): Can not decode value starting with character '<'
+2026-02-04 16:06:47 | INFO     | market_analyzer      | [大盘] 等待 3.1s 后重试...
+Please wait for a moment:   0%|          | 0/1 [00:00<?, ?it/s]                                                               2026-02-04 16:06:54 | WARNING  | market_analyzer      | [大盘] A股实时行情-新浪 获取失败 (attempt 2/2): Can not decode value starting with character '<'
+2026-02-04 16:06:54 | ERROR    | market_analyzer      | [大盘] A股实时行情-新浪 最终失败: Can not decode value starting with character '<'
+2026-02-04 16:07:03 | WARNING  | market_analyzer      | [大盘] A股实时行情-东方财富 获取失败 (attempt 1/2): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:07:03 | INFO     | market_analyzer      | [大盘] 等待 3.3s 后重试...
+2026-02-04 16:07:15 | WARNING  | market_analyzer      | [大盘] A股实时行情-东方财富 获取失败 (attempt 2/2): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:07:15 | ERROR    | market_analyzer      | [大盘] A股实时行情-东方财富 最终失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:07:15 | WARNING  | market_analyzer      | [大盘] 无法获取涨跌统计数据，将使用默认值
+2026-02-04 16:07:15 | INFO     | market_analyzer      | [大盘] 使用 Tushare 获取板块涨跌榜...
+2026-02-04 16:07:15 | WARNING  | market_analyzer      | [大盘] Tushare 积分不足，跳过板块接口
+2026-02-04 16:07:15 | WARNING  | market_analyzer      | [大盘] Tushare 获取板块失败，尝试 Akshare...
+2026-02-04 16:07:15 | INFO     | market_analyzer      | [大盘] 使用 Akshare 获取板块涨跌榜...
+2026-02-04 16:07:26 | WARNING  | market_analyzer      | [大盘] 行业板块行情 获取失败 (attempt 1/2): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:07:26 | INFO     | market_analyzer      | [大盘] 等待 2.4s 后重试...
+2026-02-04 16:07:38 | WARNING  | market_analyzer      | [大盘] 行业板块行情 获取失败 (attempt 2/2): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:07:38 | ERROR    | market_analyzer      | [大盘] 行业板块行情 最终失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-02-04 16:07:38 | INFO     | market_analyzer      | [大盘] 开始搜索市场新闻...
+2026-02-04 16:07:38 | INFO     | search_service       | 搜索股票新闻: 大盘(market)
+2026-02-04 16:07:39 | INFO     | search_service       | [Tavily] 搜索完成，query='大盘 market 股票 最新消息', 返回 3 条结果
+2026-02-04 16:07:39 | INFO     | search_service       | [Tavily] 搜索 '大盘 market 股票 最新消息' 成功，返回 3 条结果，耗时 0.55s
+2026-02-04 16:07:39 | INFO     | search_service       | 使用 Tavily 搜索成功
+2026-02-04 16:07:39 | INFO     | market_analyzer      | [大盘] 搜索 'A股 大盘 复盘 2026年2月' 获取 3 条结果
+2026-02-04 16:07:39 | INFO     | search_service       | 搜索股票新闻: 大盘(market)
+2026-02-04 16:07:39 | INFO     | search_service       | [Tavily] 搜索完成，query='大盘 market 股票 最新消息', 返回 3 条结果
+2026-02-04 16:07:39 | INFO     | search_service       | [Tavily] 搜索 '大盘 market 股票 最新消息' 成功，返回 3 条结果，耗时 0.34s
+2026-02-04 16:07:39 | INFO     | search_service       | 使用 Tavily 搜索成功
+2026-02-04 16:07:39 | INFO     | market_analyzer      | [大盘] 搜索 '股市 行情 分析 今日 2026年2月' 获取 3 条结果
+2026-02-04 16:07:39 | INFO     | search_service       | 搜索股票新闻: 大盘(market)
+2026-02-04 16:07:40 | INFO     | search_service       | [Tavily] 搜索完成，query='大盘 market 股票 最新消息', 返回 3 条结果
+2026-02-04 16:07:40 | INFO     | search_service       | [Tavily] 搜索 '大盘 market 股票 最新消息' 成功，返回 3 条结果，耗时 0.34s
+2026-02-04 16:07:40 | INFO     | search_service       | 使用 Tavily 搜索成功
+2026-02-04 16:07:40 | INFO     | market_analyzer      | [大盘] 搜索 'A股 市场 热点 板块 2026年2月' 获取 3 条结果
+2026-02-04 16:07:40 | INFO     | market_analyzer      | [大盘] 共获取 9 条市场新闻
+2026-02-04 16:07:40 | INFO     | market_analyzer      | [大盘] 调用大模型生成复盘报告...
+2026-02-04 16:07:52 | INFO     | market_analyzer      | [大盘] 复盘报告生成成功，长度: 698 字符
+2026-02-04 16:07:52 | INFO     | market_analyzer      | ========== 大盘复盘分析完成 ==========
+2026-02-04 16:07:52 | INFO     | notification         | 日报已保存到: /Users/karl/Documents/vibe_coding/daily_stock_analysis/reports/market_review_20260204.md
+2026-02-04 16:07:52 | INFO     | __main__             | 大盘复盘报告已保存: /Users/karl/Documents/vibe_coding/daily_stock_analysis/reports/market_review_20260204.md
+2026-02-04 16:07:52 | INFO     | notification         | 正在向 2 个渠道发送通知：企业微信, 飞书
+2026-02-04 16:07:53 | INFO     | notification         | 企业微信消息发送成功
+2026-02-04 16:07:54 | INFO     | notification         | 飞书消息发送成功
+2026-02-04 16:07:54 | INFO     | notification         | 通知发送完成：成功 2 个，失败 0 个
+2026-02-04 16:07:54 | INFO     | __main__             | 大盘复盘推送成功
+2026-02-04 16:07:54 | INFO     | __main__             | 
+===== 分析结果摘要 =====
+2026-02-04 16:07:54 | INFO     | __main__             | 🟢 迈为股份(002300): 买入 | 评分 72 | 看多
+2026-02-04 16:07:54 | INFO     | __main__             | 🟡 股票300751(300751): 减仓/观望 | 评分 48 | 震荡看空
+2026-02-04 16:07:54 | INFO     | __main__             | ⚪ 江丰电子(300666): 观望 | 评分 42 | 看空
+2026-02-04 16:07:54 | INFO     | __main__             | 
+任务执行完成
+2026-02-04 16:07:54 | INFO     | scheduler            | 定时任务执行完成 - 2026-02-04 16:07:54
+2026-02-04 16:07:54 | INFO     | scheduler            | 调度器开始运行...
+2026-02-04 16:07:54 | INFO     | scheduler            | 下次执行时间: 2026-02-04 22:45:00
+2026-02-04 16:41:42 | INFO     | scheduler            | 收到退出信号 (15)，等待当前任务完成...
