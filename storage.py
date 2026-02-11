@@ -422,6 +422,7 @@ class DatabaseManager:
         
         if yesterday_data:
             context['yesterday'] = yesterday_data.to_dict()
+            context['prev_day'] = yesterday_data.to_dict()  # 别名，供优化器使用
             
             # 计算相比昨日的变化
             if yesterday_data.volume and yesterday_data.volume > 0:
@@ -437,7 +438,88 @@ class DatabaseManager:
             # 均线形态判断
             context['ma_status'] = self._analyze_ma_status(today_data)
         
+        # ========== 新增：优化器需要的扩展指标 (2026-02-07) ==========
+        context['trend'] = self._calculate_trend_indicators(code, today_data)
+        
         return context
+    
+    def _calculate_trend_indicators(self, code: str, today_data) -> Dict[str, Any]:
+        """
+        计算趋势指标，供信号优化器使用
+        
+        2026-02-07 新增
+        """
+        trend = {}
+        
+        # 获取更多历史数据来计算连涨/连跌天数
+        recent_data = self.get_latest_data(code, days=10)
+        
+        # 计算乖离率
+        close = today_data.close or 0
+        ma5 = today_data.ma5 or close
+        ma10 = today_data.ma10 or close
+        ma20 = today_data.ma20 or close
+        
+        if ma5 > 0:
+            trend['bias_ma5'] = round((close - ma5) / ma5 * 100, 2)
+        else:
+            trend['bias_ma5'] = 0
+            
+        if ma10 > 0:
+            trend['bias_ma10'] = round((close - ma10) / ma10 * 100, 2)
+        else:
+            trend['bias_ma10'] = 0
+        
+        # 计算连涨/连跌天数
+        consecutive_up = 0
+        consecutive_down = 0
+        
+        if len(recent_data) > 1:
+            for i in range(len(recent_data) - 1):
+                if recent_data[i].pct_chg is not None:
+                    if recent_data[i].pct_chg > 0:
+                        if consecutive_down == 0:
+                            consecutive_up += 1
+                        else:
+                            break
+                    elif recent_data[i].pct_chg < 0:
+                        if consecutive_up == 0:
+                            consecutive_down += 1
+                        else:
+                            break
+                    else:
+                        break
+        
+        trend['consecutive_up_days'] = consecutive_up
+        trend['consecutive_down_days'] = consecutive_down
+        
+        # 均线多头/空头判断
+        trend['ma_bullish'] = close > ma5 > ma10 > ma20 > 0
+        
+        # 量能配合判断
+        volume_ratio = today_data.volume_ratio if hasattr(today_data, 'volume_ratio') and today_data.volume_ratio else 1.0
+        pct_chg = today_data.pct_chg or 0
+        
+        # 上涨放量 或 下跌缩量 = 量能配合
+        if pct_chg > 0:
+            trend['volume_support'] = volume_ratio >= 1.0
+        elif pct_chg < 0:
+            trend['volume_support'] = volume_ratio < 1.0
+        else:
+            trend['volume_support'] = True
+        
+        # RSI 简单估算 (基于最近涨跌比例)
+        if len(recent_data) >= 6:
+            gains = sum(1 for d in recent_data[:6] if d.pct_chg and d.pct_chg > 0)
+            losses = sum(1 for d in recent_data[:6] if d.pct_chg and d.pct_chg < 0)
+            if gains + losses > 0:
+                trend['rsi'] = round(gains / (gains + losses) * 100, 0)
+            else:
+                trend['rsi'] = 50
+        else:
+            trend['rsi'] = 50
+        
+        return trend
     
     def _analyze_ma_status(self, data: StockDaily) -> str:
         """

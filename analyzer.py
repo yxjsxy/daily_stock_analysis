@@ -25,6 +25,7 @@ from tenacity import (
 )
 
 from config import get_config
+from signal_optimizer import get_optimizer, SignalOptimizer
 
 logger = logging.getLogger(__name__)
 
@@ -913,6 +914,9 @@ class GeminiAnalyzer:
                     result.raw_response = response_text
                     result.search_performed = bool(news_context)
                     
+                    # ========== 信号优化层 (2026-02-07 新增) ==========
+                    result = self._optimize_signal(result, context)
+                    
                     logger.info(f"[LLM解析] {name}({code}) 分析完成: {result.trend_prediction}, 评分 {result.sentiment_score}")
                     return result
                     
@@ -945,6 +949,127 @@ class GeminiAnalyzer:
                 success=False,
                 error_message=str(e),
             )
+    
+    def _optimize_signal(
+        self, 
+        result: 'AnalysisResult', 
+        context: Dict[str, Any]
+    ) -> 'AnalysisResult':
+        """
+        信号优化层 - 应用硬规则过滤、反转预警、置信度调整
+        
+        2026-02-07 新增，用于优化 LLM 给出的原始信号
+        """
+        try:
+            optimizer = get_optimizer()
+            
+            # 提取技术指标
+            today = context.get('today', {})
+            trend = context.get('trend', {})
+            
+            indicators = {
+                'bias_ma5': trend.get('bias_ma5', 0),
+                'bias_ma10': trend.get('bias_ma10', 0),
+                'consecutive_up_days': trend.get('consecutive_up_days', 0),
+                'consecutive_down_days': trend.get('consecutive_down_days', 0),
+                'prev_limit_up': today.get('pct_chg', 0) >= 9.8 if 'pct_chg' in today else False,
+                'prev_limit_down': today.get('pct_chg', 0) <= -9.8 if 'pct_chg' in today else False,
+                'rsi': trend.get('rsi', 50),
+                'volume_ratio': today.get('volume_ratio', 1),
+                'pct_chg': today.get('pct_chg', 0),
+                'prev_pct_chg': context.get('prev_day', {}).get('pct_chg', 0),
+                'close': today.get('close', 0),
+                'macd_divergence': trend.get('macd_divergence', None),
+                'has_reduction_plan': context.get('has_reduction_plan', False),
+            }
+            
+            # 股票信息
+            stock_info = {
+                'is_suspended': context.get('is_suspended', False),
+                'just_resumed': context.get('just_resumed', False),
+                'resumed_yesterday': context.get('resumed_yesterday', False),
+                'resume_reason': context.get('resume_reason', ''),
+                'suspend_days': context.get('suspend_days', 0),
+                'prev_resume_change': context.get('prev_resume_change', 0),
+            }
+            
+            # 上下文信息
+            opt_context = {
+                'prev_signal': context.get('prev_signal', ''),
+                'prev_pct_chg': indicators['prev_pct_chg'],
+                'chan_bullish': trend.get('chan_bullish', None),
+                'ma_bullish': trend.get('ma_bullish', None),
+                'volume_support': trend.get('volume_support', True),
+            }
+            
+            # 调用优化器
+            opt_result = optimizer.optimize(
+                signal=result.operation_advice,
+                confidence=0.7 if result.confidence_level == '高' else (0.5 if result.confidence_level == '中' else 0.3),
+                indicators=indicators,
+                stock_info=stock_info,
+                context=opt_context
+            )
+            
+            # 应用优化结果
+            original_advice = result.operation_advice
+            if opt_result['final_signal'] != result.operation_advice:
+                result.operation_advice = opt_result['final_signal']
+                
+                # 更新置信度
+                if opt_result['final_confidence'] < 0.3:
+                    result.confidence_level = '低'
+                elif opt_result['final_confidence'] < 0.6:
+                    result.confidence_level = '中'
+                else:
+                    result.confidence_level = '高'
+                
+                # 记录优化日志
+                adj_str = '; '.join(opt_result['adjustments'])
+                logger.info(f"[信号优化] {result.name}({result.code}): {original_advice} → {result.operation_advice} ({adj_str})")
+            
+            # 添加警告到风险提示
+            if opt_result['warnings']:
+                warning_str = ' | '.join(opt_result['warnings'])
+                if result.risk_warning:
+                    result.risk_warning = f"{warning_str} | {result.risk_warning}"
+                else:
+                    result.risk_warning = warning_str
+            
+            # 记录预测到历史库
+            try:
+                sniper_points = result.get_sniper_points()
+                optimizer.log_prediction(
+                    date=context.get('date', ''),
+                    code=result.code,
+                    name=result.name,
+                    signal=result.operation_advice,
+                    confidence=opt_result['final_confidence'],
+                    price=today.get('close', 0),
+                    target=self._parse_price(sniper_points.get('take_profit', '')),
+                    stop_loss=self._parse_price(sniper_points.get('stop_loss', '')),
+                )
+            except Exception as e:
+                logger.warning(f"记录预测失败: {e}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"信号优化失败: {e}")
+            return result  # 优化失败时返回原始结果
+    
+    def _parse_price(self, price_str: str) -> Optional[float]:
+        """从字符串中提取价格数值"""
+        if not price_str:
+            return None
+        import re
+        match = re.search(r'[\d.]+', str(price_str))
+        if match:
+            try:
+                return float(match.group())
+            except:
+                pass
+        return None
     
     def _format_prompt(
         self, 
