@@ -125,8 +125,14 @@ class HardRuleFilter:
         },
         {
             'name': '大股东减持',
-            'condition': lambda d: d.get('has_reduction_plan', False),
-            'message': '⚠️ 存在大股东减持计划',
+            # [2026-02-14 优化] 减持不再一刀切警告，改为由 NewsHedgeModel 量化对冲
+            # 仅当减持比例>5%且无强利好对冲时才警告
+            'condition': lambda d: (
+                d.get('has_reduction_plan', False) and 
+                d.get('reduction_pct', 100) > 5 and
+                not d.get('has_strong_positive', False)
+            ),
+            'message': '⚠️ 大股东减持>5%且无强利好对冲',
             'applies_to': ['买入', '强烈买入', '加仓'],
         },
     ]
@@ -757,6 +763,517 @@ class PredictionHistoryManager:
             conn.close()
 
 
+# ========== [2026-02-14 新增] 利好vs利空量化对冲模型 ==========
+
+class NewsHedgeModel:
+    """
+    利好 vs 利空量化对冲模型
+    
+    [优化点5] 取代简单一票否决制，建立量化对冲机制
+    [优化点1] 减持利空权重动态调整：减持≤3%且有强利好时，权重降至 -10~-15
+    
+    权重体系：
+    - 利空：减持(-10~-30)、业绩预亏(-25)、监管处罚(-20)、行业利空(-15)、大额解禁(-20)
+    - 利好：并购重组(+25)、业绩预增(+20)、政策利好(+15)、重大合同(+15)、回购(+10)
+    - 净值 < -20 → 观望（重大利空无法对冲）
+    - 净值 -20~0 → 降低仓位
+    - 净值 > 0 → 利好占优，正常操作
+    """
+    
+    # 利空权重映射
+    NEGATIVE_WEIGHTS = {
+        'reduction_small': -12,     # 减持≤3%（[优化点1] 从-30降至-12）
+        'reduction_medium': -20,    # 减持3-5%
+        'reduction_large': -30,     # 减持>5%
+        'earnings_loss': -25,       # 业绩预亏
+        'regulatory_penalty': -20,  # 监管处罚
+        'sector_negative': -15,     # 行业利空
+        'large_unlock': -20,        # 大额解禁
+    }
+    
+    # 利好权重映射
+    POSITIVE_WEIGHTS = {
+        'merger_acquisition': 25,   # 并购重组
+        'earnings_increase': 20,    # 业绩预增
+        'policy_positive': 15,      # 政策利好
+        'major_contract': 15,       # 重大合同
+        'buyback': 10,              # 回购
+        'institutional_buy': 10,    # 机构增持
+    }
+    
+    def evaluate(self, news_factors: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        量化评估利好利空对冲后的净影响
+        
+        Args:
+            news_factors: {
+                'negatives': [{'type': 'reduction_small', 'detail': '...'}],
+                'positives': [{'type': 'merger_acquisition', 'detail': '...'}],
+                'reduction_pct': 3.0,  # 减持比例
+            }
+        
+        Returns:
+            {
+                'net_score': int,  # 净得分
+                'negative_total': int,
+                'positive_total': int,
+                'should_veto': bool,  # 是否一票否决（仅净分<-20）
+                'position_adjust': float,  # 仓位调整系数 0.0-1.0
+                'details': [str],
+            }
+        """
+        negative_total = 0
+        positive_total = 0
+        details = []
+        
+        # 计算利空得分
+        for neg in news_factors.get('negatives', []):
+            neg_type = neg.get('type', '')
+            
+            # [优化点1] 减持权重动态计算
+            if neg_type.startswith('reduction'):
+                reduction_pct = news_factors.get('reduction_pct', 5)
+                has_strong_positive = len(news_factors.get('positives', [])) > 0 and \
+                    any(p.get('type') in ('merger_acquisition', 'earnings_increase') 
+                        for p in news_factors.get('positives', []))
+                
+                if reduction_pct <= 3 and has_strong_positive:
+                    weight = -12  # 有强利好对冲，减持权重降至-12
+                    details.append(f"减持{reduction_pct}%+强利好对冲: {weight}分")
+                elif reduction_pct <= 3:
+                    weight = -15
+                    details.append(f"减持{reduction_pct}%(小比例): {weight}分")
+                elif reduction_pct <= 5:
+                    weight = -20
+                    details.append(f"减持{reduction_pct}%(中等): {weight}分")
+                else:
+                    weight = -30
+                    details.append(f"减持{reduction_pct}%(大比例): {weight}分")
+                negative_total += weight
+            else:
+                weight = self.NEGATIVE_WEIGHTS.get(neg_type, -10)
+                negative_total += weight
+                details.append(f"利空[{neg_type}]: {weight}分")
+        
+        # 计算利好得分
+        for pos in news_factors.get('positives', []):
+            pos_type = pos.get('type', '')
+            weight = self.POSITIVE_WEIGHTS.get(pos_type, 5)
+            positive_total += weight
+            details.append(f"利好[{pos_type}]: +{weight}分")
+        
+        net_score = positive_total + negative_total
+        
+        # 判断是否一票否决（仅当净分极低时）
+        should_veto = net_score < -20
+        
+        # 仓位调整系数
+        if net_score < -20:
+            position_adjust = 0.0  # 不建议操作
+        elif net_score < -10:
+            position_adjust = 0.3
+        elif net_score < 0:
+            position_adjust = 0.6
+        else:
+            position_adjust = 1.0
+        
+        return {
+            'net_score': net_score,
+            'negative_total': negative_total,
+            'positive_total': positive_total,
+            'should_veto': should_veto,
+            'position_adjust': position_adjust,
+            'details': details,
+        }
+
+
+# ========== [2026-02-14 新增] 趋势惯性因子 (Momentum Tracker) ==========
+
+class MomentumTracker:
+    """
+    趋势惯性因子
+    
+    [优化点2] 解决连续三天信号翻转问题（2/10看多→2/11看空→2/12看多）
+    
+    使用 3-5 日信号方向的加权平均作为 momentum_score:
+    - momentum_score > 0.3 → 偏多惯性，空信号需更强证据
+    - momentum_score < -0.3 → 偏空惯性，多信号需更强证据
+    - -0.3 ~ 0.3 → 无明显惯性
+    
+    权重占总评分的 15-20%
+    """
+    
+    # 信号到数值的映射
+    SIGNAL_VALUES = {
+        '强烈买入': 1.0,
+        '买入': 0.7,
+        '加仓': 0.7,
+        '持有': 0.3,
+        '观望': 0.0,
+        '减仓': -0.5,
+        '卖出': -0.7,
+        '强烈卖出': -1.0,
+    }
+    
+    # 日权重：近日权重更高（index 0 = 最近一天）
+    DAY_WEIGHTS = [0.35, 0.25, 0.20, 0.12, 0.08]
+    
+    def calculate_momentum(self, recent_signals: List[str]) -> Dict[str, Any]:
+        """
+        计算趋势惯性得分
+        
+        Args:
+            recent_signals: 最近 3-5 天的信号列表，[最近一天, 前一天, ...]
+        
+        Returns:
+            {
+                'momentum_score': float (-1 ~ 1),
+                'direction': str ('bullish'/'bearish'/'neutral'),
+                'signal_stability': float (0-1, 信号稳定度),
+                'flip_count': int (翻转次数),
+                'adjustment': str (建议调整),
+            }
+        """
+        if not recent_signals:
+            return {
+                'momentum_score': 0.0,
+                'direction': 'neutral',
+                'signal_stability': 0.5,
+                'flip_count': 0,
+                'adjustment': '无历史数据',
+            }
+        
+        # 转换信号为数值
+        values = [self.SIGNAL_VALUES.get(s, 0.0) for s in recent_signals[:5]]
+        
+        # 加权平均
+        weights = self.DAY_WEIGHTS[:len(values)]
+        weight_sum = sum(weights)
+        momentum_score = sum(v * w for v, w in zip(values, weights)) / weight_sum
+        
+        # 计算翻转次数
+        flip_count = 0
+        for i in range(1, len(values)):
+            if (values[i] > 0 and values[i-1] < 0) or (values[i] < 0 and values[i-1] > 0):
+                flip_count += 1
+        
+        # 信号稳定度：翻转越多越不稳定
+        signal_stability = max(0.0, 1.0 - flip_count * 0.25)
+        
+        # 方向判断
+        if momentum_score > 0.3:
+            direction = 'bullish'
+        elif momentum_score < -0.3:
+            direction = 'bearish'
+        else:
+            direction = 'neutral'
+        
+        # 调整建议
+        if flip_count >= 2 and len(values) <= 3:
+            adjustment = '信号频繁翻转，建议降低仓位或观望'
+        elif direction == 'bullish':
+            adjustment = '多头惯性，空信号需更强证据才能翻转'
+        elif direction == 'bearish':
+            adjustment = '空头惯性，多信号需更强证据才能翻转'
+        else:
+            adjustment = '无明显惯性'
+        
+        return {
+            'momentum_score': round(momentum_score, 3),
+            'direction': direction,
+            'signal_stability': round(signal_stability, 2),
+            'flip_count': flip_count,
+            'adjustment': adjustment,
+        }
+    
+    def apply_momentum_filter(
+        self, 
+        current_signal: str, 
+        momentum_result: Dict[str, Any],
+        current_score: int
+    ) -> Tuple[str, int, List[str]]:
+        """
+        用惯性因子过滤当前信号
+        
+        [优化点2] 权重 15-20%，防止过度敏感
+        
+        Returns:
+            (adjusted_signal, adjusted_score, reasons)
+        """
+        momentum_score = momentum_result['momentum_score']
+        direction = momentum_result['direction']
+        stability = momentum_result['signal_stability']
+        flip_count = momentum_result['flip_count']
+        
+        adjusted_signal = current_signal
+        adjusted_score = current_score
+        reasons = []
+        
+        # 惯性加分/减分（权重约15-20分，满分100）
+        momentum_bonus = int(momentum_score * 18)  # ±18分范围
+        adjusted_score += momentum_bonus
+        
+        if momentum_bonus != 0:
+            reasons.append(f"[惯性因子] momentum={momentum_score:.2f}, 调整{momentum_bonus:+d}分")
+        
+        # 翻转惩罚：连续翻转降低置信度
+        if flip_count >= 2:
+            penalty = -8
+            adjusted_score += penalty
+            reasons.append(f"[翻转惩罚] {flip_count}次翻转, {penalty}分")
+        
+        # 惯性阻力：当信号与惯性方向相反时，需要更强的信号
+        current_value = self.SIGNAL_VALUES.get(current_signal, 0.0)
+        if direction == 'bullish' and current_value < -0.3:
+            # 多头惯性中出现空信号 → 信号降级
+            if abs(current_value) < abs(momentum_score):
+                adjusted_signal = '观望'
+                reasons.append(f"[惯性阻力] 多头惯性中弱空信号→观望")
+        elif direction == 'bearish' and current_value > 0.3:
+            # 空头惯性中出现多信号 → 信号降级
+            if abs(current_value) < abs(momentum_score):
+                adjusted_signal = '观望'
+                reasons.append(f"[惯性阻力] 空头惯性中弱多信号→观望")
+        
+        # 确保分数在合理范围
+        adjusted_score = max(0, min(100, adjusted_score))
+        
+        return adjusted_signal, adjusted_score, reasons
+
+
+# ========== [2026-02-14 新增] 量价突破信号检测 ==========
+
+class VolumeBreakthroughDetector:
+    """
+    量价突破信号检测器
+    
+    [优化点3] 量比>1.5 + 收盘突破前高 = 强制看多，覆盖弱空信号
+    
+    这是极强的技术信号，应该有最高优先级覆盖弱空信号
+    """
+    
+    def detect(self, indicators: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        检测量价突破信号
+        
+        Args:
+            indicators: {
+                'volume_ratio': 量比,
+                'close': 收盘价,
+                'prev_high_20d': 近20日最高价,
+                'prev_high_5d': 近5日最高价,
+                'pct_chg': 涨跌幅,
+            }
+        
+        Returns:
+            {
+                'is_breakthrough': bool,
+                'strength': str ('strong'/'moderate'/'none'),
+                'override_bearish': bool,  # 是否应覆盖弱空信号
+                'forced_signal': str or None,
+                'reasons': [str],
+            }
+        """
+        volume_ratio = indicators.get('volume_ratio', 1.0)
+        close = indicators.get('close', 0)
+        prev_high_20d = indicators.get('prev_high_20d', float('inf'))
+        prev_high_5d = indicators.get('prev_high_5d', float('inf'))
+        pct_chg = indicators.get('pct_chg', 0)
+        
+        reasons = []
+        is_breakthrough = False
+        strength = 'none'
+        override_bearish = False
+        forced_signal = None
+        
+        # 强突破：量比>1.5 + 收盘突破20日前高
+        if volume_ratio > 1.5 and close > prev_high_20d and pct_chg > 0:
+            is_breakthrough = True
+            strength = 'strong'
+            override_bearish = True
+            forced_signal = '买入'
+            reasons.append(
+                f"🚀 强势量价突破: 量比{volume_ratio:.2f}>1.5, "
+                f"收盘{close:.2f}突破20日前高{prev_high_20d:.2f}"
+            )
+        
+        # 中等突破：量比>1.3 + 收盘突破5日前高
+        elif volume_ratio > 1.3 and close > prev_high_5d and pct_chg > 1:
+            is_breakthrough = True
+            strength = 'moderate'
+            override_bearish = True  # 仍覆盖弱空
+            forced_signal = '买入'
+            reasons.append(
+                f"📈 量价突破: 量比{volume_ratio:.2f}>1.3, "
+                f"收盘{close:.2f}突破5日前高{prev_high_5d:.2f}"
+            )
+        
+        # 弱突破信号（不强制覆盖，仅加分）
+        elif volume_ratio > 1.5 and pct_chg > 2:
+            is_breakthrough = True
+            strength = 'moderate'
+            override_bearish = False
+            reasons.append(f"📊 放量上涨: 量比{volume_ratio:.2f}, 涨幅{pct_chg:.1f}%")
+        
+        return {
+            'is_breakthrough': is_breakthrough,
+            'strength': strength,
+            'override_bearish': override_bearish,
+            'forced_signal': forced_signal,
+            'reasons': reasons,
+        }
+
+
+# ========== [2026-02-14 新增] 缠论状态机 ==========
+
+class ChanStateMachine:
+    """
+    缠论跨日状态机
+    
+    [优化点4] 确保笔-段-中枢判断跨日连贯
+    
+    状态转移规则：
+    - 上升笔 → 只能转为 顶分型确认 → 下降笔
+    - 下降笔 → 只能转为 底分型确认 → 上升笔
+    - 不允许直接 上升笔 → 下降笔（中间必须经过分型确认）
+    
+    持久化到 JSON 文件，确保跨日一致
+    """
+    
+    VALID_TRANSITIONS = {
+        '上升笔': ['顶分型待确认', '上升笔延续'],
+        '顶分型待确认': ['下降笔', '上升笔延续'],  # 确认失败回到上升
+        '下降笔': ['底分型待确认', '下降笔延续'],
+        '底分型待确认': ['上升笔', '下降笔延续'],
+        '上升笔延续': ['顶分型待确认', '上升笔延续'],
+        '下降笔延续': ['底分型待确认', '下降笔延续'],
+        '未知': ['上升笔', '下降笔', '未知'],
+    }
+    
+    def __init__(self, state_file: str = None):
+        if state_file is None:
+            state_file = str(Path(__file__).parent / 'data' / 'chan_state.json')
+        self.state_file = Path(state_file)
+        self.state_file.parent.mkdir(parents=True, exist_ok=True)
+        self.states = self._load_states()
+    
+    def _load_states(self) -> Dict[str, Dict]:
+        """加载状态"""
+        if self.state_file.exists():
+            try:
+                with open(self.state_file, 'r') as f:
+                    return json.load(f)
+            except Exception:
+                return {}
+        return {}
+    
+    def _save_states(self):
+        """保存状态"""
+        try:
+            with open(self.state_file, 'w') as f:
+                json.dump(self.states, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"保存缠论状态失败: {e}")
+    
+    def get_state(self, code: str) -> Dict[str, Any]:
+        """获取某股票的缠论状态"""
+        return self.states.get(code, {
+            'current_bi': '未知',
+            'zhongshu_low': None,
+            'zhongshu_high': None,
+            'last_update': None,
+            'bi_history': [],
+        })
+    
+    def validate_transition(self, code: str, new_bi: str, date: str) -> Dict[str, Any]:
+        """
+        验证缠论状态转移是否合法
+        
+        Args:
+            code: 股票代码
+            new_bi: 新的笔状态
+            date: 日期
+        
+        Returns:
+            {
+                'valid': bool,
+                'current_state': str,
+                'new_state': str,
+                'warning': str or None,
+                'corrected_state': str,  # 如果不合法，给出修正建议
+            }
+        """
+        state = self.get_state(code)
+        current_bi = state.get('current_bi', '未知')
+        
+        # 简化新笔状态的映射
+        bi_mapping = {
+            '离开中枢向上笔': '上升笔',
+            '向上笔': '上升笔',
+            '上涨笔': '上升笔',
+            '一卖后向下笔': '下降笔',
+            '向下笔': '下降笔',
+            '下跌笔': '下降笔',
+        }
+        normalized_new = bi_mapping.get(new_bi, new_bi)
+        normalized_current = bi_mapping.get(current_bi, current_bi)
+        
+        # 检查转移是否合法
+        valid_targets = self.VALID_TRANSITIONS.get(normalized_current, ['未知'])
+        
+        # 直接从上升笔到下降笔是不合法的（需经过顶分型确认）
+        if normalized_current == '上升笔' and normalized_new == '下降笔':
+            return {
+                'valid': False,
+                'current_state': current_bi,
+                'new_state': new_bi,
+                'warning': f'状态矛盾：{current_bi}→{new_bi}，缺少顶分型确认过渡',
+                'corrected_state': '顶分型待确认',
+            }
+        
+        if normalized_current == '下降笔' and normalized_new == '上升笔':
+            return {
+                'valid': False,
+                'current_state': current_bi,
+                'new_state': new_bi,
+                'warning': f'状态矛盾：{current_bi}→{new_bi}，缺少底分型确认过渡',
+                'corrected_state': '底分型待确认',
+            }
+        
+        return {
+            'valid': True,
+            'current_state': current_bi,
+            'new_state': new_bi,
+            'warning': None,
+            'corrected_state': normalized_new,
+        }
+    
+    def update_state(self, code: str, new_bi: str, date: str, 
+                     zhongshu_low: float = None, zhongshu_high: float = None):
+        """更新缠论状态"""
+        state = self.get_state(code)
+        
+        # 记录历史
+        if 'bi_history' not in state:
+            state['bi_history'] = []
+        state['bi_history'].append({
+            'date': date,
+            'bi': state.get('current_bi', '未知'),
+        })
+        # 只保留最近10条
+        state['bi_history'] = state['bi_history'][-10:]
+        
+        state['current_bi'] = new_bi
+        state['last_update'] = date
+        if zhongshu_low is not None:
+            state['zhongshu_low'] = zhongshu_low
+        if zhongshu_high is not None:
+            state['zhongshu_high'] = zhongshu_high
+        
+        self.states[code] = state
+        self._save_states()
+
+
 # ========== 综合优化器 ==========
 
 class SignalOptimizer:
@@ -770,6 +1287,11 @@ class SignalOptimizer:
         self.resume_handler = ResumeTradingHandler()
         self.history_manager = PredictionHistoryManager(db_path)
         self.confidence_adjuster = SignalConfidenceAdjuster(self.history_manager)
+        # [2026-02-14 新增] 三个优化模块
+        self.news_hedge = NewsHedgeModel()
+        self.momentum_tracker = MomentumTracker()
+        self.volume_breakthrough = VolumeBreakthroughDetector()
+        self.chan_state_machine = ChanStateMachine()
     
     def optimize(
         self, 
@@ -818,7 +1340,21 @@ class SignalOptimizer:
             result['adjustments'].extend(hard_rule_result.blocked_reasons)
         result['warnings'].extend(hard_rule_result.warnings)
         
-        # 3. 反转预警
+        # 3. [2026-02-14 优化点3] 量价突破检测 — 最高优先级
+        breakthrough = self.volume_breakthrough.detect(indicators)
+        if breakthrough['is_breakthrough']:
+            result['warnings'].extend(breakthrough['reasons'])
+            if breakthrough['override_bearish'] and breakthrough['forced_signal']:
+                # 量价突破覆盖弱空信号
+                current_signal = result['final_signal']
+                if current_signal in ['观望', '减仓', '卖出'] and not result.get('_strong_bearish'):
+                    result['final_signal'] = breakthrough['forced_signal']
+                    result['blocked'] = False
+                    result['adjustments'].append(
+                        f"[量价突破] {breakthrough['strength']}突破信号覆盖弱空→{breakthrough['forced_signal']}"
+                    )
+        
+        # 4. 反转预警
         reversal_warning = self.reversal_detector.detect(indicators, signal)
         if reversal_warning.has_risk:
             result['warnings'].extend([f"[反转风险] {f}" for f in reversal_warning.risk_factors])
@@ -826,7 +1362,56 @@ class SignalOptimizer:
                 result['final_signal'] = reversal_warning.suggested_action or '观望'
                 result['adjustments'].append(f"[反转预警] 高风险，信号降级")
         
-        # 4. 置信度调整
+        # 5. [2026-02-14 优化点5] 利好vs利空量化对冲
+        news_factors = context.get('news_factors', {})
+        if news_factors.get('negatives') or news_factors.get('positives'):
+            hedge_result = self.news_hedge.evaluate(news_factors)
+            result['hedge_result'] = hedge_result
+            if hedge_result['should_veto']:
+                result['final_signal'] = '观望'
+                result['blocked'] = True
+                result['adjustments'].append(
+                    f"[利空对冲] 净分{hedge_result['net_score']}(<-20)，利空无法对冲→观望"
+                )
+            elif hedge_result['position_adjust'] < 1.0:
+                result['adjustments'].append(
+                    f"[利空对冲] 净分{hedge_result['net_score']}，建议仓位×{hedge_result['position_adjust']}"
+                )
+            result['adjustments'].extend(hedge_result['details'])
+        
+        # 6. [2026-02-14 优化点2] 趋势惯性因子
+        recent_signals = context.get('recent_signals', [])
+        if recent_signals:
+            momentum_result = self.momentum_tracker.calculate_momentum(recent_signals)
+            result['momentum'] = momentum_result
+            
+            current_score = context.get('sentiment_score', 50)
+            adj_signal, adj_score, mom_reasons = self.momentum_tracker.apply_momentum_filter(
+                result['final_signal'], momentum_result, current_score
+            )
+            if adj_signal != result['final_signal']:
+                result['final_signal'] = adj_signal
+            result['adjustments'].extend(mom_reasons)
+        
+        # 7. [2026-02-14 优化点4] 缠论状态机验证
+        chan_bi = context.get('chan_current_bi', '')
+        code = context.get('code', '')
+        date = context.get('date', '')
+        if chan_bi and code:
+            transition = self.chan_state_machine.validate_transition(code, chan_bi, date)
+            if not transition['valid']:
+                result['warnings'].append(f"[缠论状态机] {transition['warning']}")
+                result['adjustments'].append(
+                    f"[缠论修正] {transition['current_state']}→{transition['corrected_state']}"
+                )
+            # 更新状态
+            corrected = transition['corrected_state'] if not transition['valid'] else chan_bi
+            self.chan_state_machine.update_state(
+                code, corrected, date,
+                context.get('zhongshu_low'), context.get('zhongshu_high')
+            )
+        
+        # 8. 置信度调整
         if not result['blocked']:
             adjusted_signal, adjusted_conf, adj_reasons = self.confidence_adjuster.adjust(
                 result['final_signal'],
