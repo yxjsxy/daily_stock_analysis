@@ -745,7 +745,7 @@ class GeminiAnalyzer:
                 response = self._model.generate_content(
                     prompt,
                     generation_config=generation_config,
-                    request_options={"timeout": 120}
+                    request_options={"timeout": 180}
                 )
                 
                 if response and response.text:
