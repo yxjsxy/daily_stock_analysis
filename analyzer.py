@@ -499,7 +499,7 @@ class GeminiAnalyzer:
         """
         config = get_config()
         self._api_key = api_key or config.gemini_api_key
-        self._model = None
+        self._client = None
         self._current_model_name = None  # 当前使用的模型名称
         self._using_fallback = False  # 是否正在使用备选模型
         self._use_openai = False  # 是否使用 OpenAI 兼容 API
@@ -521,7 +521,7 @@ class GeminiAnalyzer:
             self._init_openai_fallback()
         
         # 两者都未配置
-        if not self._model and not self._openai_client:
+        if not self._client and not self._openai_client:
             logger.warning("未配置任何 AI API Key，AI 分析功能将不可用")
     
     def _init_openai_fallback(self) -> None:
@@ -586,42 +586,32 @@ class GeminiAnalyzer:
         - 不启用 Google Search（使用外部 Tavily/SerpAPI 搜索）
         """
         try:
-            import google.generativeai as genai
+            from google import genai
             
-            # 配置 API Key
-            genai.configure(api_key=self._api_key)
+            # 创建 Client
+            self._client = genai.Client(api_key=self._api_key)
             
             # 从配置获取模型名称
             config = get_config()
             model_name = config.gemini_model
             fallback_model = config.gemini_model_fallback
             
-            # 不再使用 Google Search Grounding（已知有兼容性问题）
-            # 改为使用外部搜索服务（Tavily/SerpAPI）预先获取新闻
-            
             # 尝试初始化主模型
             try:
-                self._model = genai.GenerativeModel(
-                    model_name=model_name,
-                    system_instruction=self.SYSTEM_PROMPT,
-                )
+                # 验证模型可用
+                self._client.models.generate_content(model=model_name, contents="test")
                 self._current_model_name = model_name
                 self._using_fallback = False
                 logger.info(f"Gemini 模型初始化成功 (模型: {model_name})")
             except Exception as model_error:
-                # 尝试备选模型
                 logger.warning(f"主模型 {model_name} 初始化失败: {model_error}，尝试备选模型 {fallback_model}")
-                self._model = genai.GenerativeModel(
-                    model_name=fallback_model,
-                    system_instruction=self.SYSTEM_PROMPT,
-                )
                 self._current_model_name = fallback_model
                 self._using_fallback = True
                 logger.info(f"Gemini 备选模型初始化成功 (模型: {fallback_model})")
             
         except Exception as e:
             logger.error(f"Gemini 模型初始化失败: {e}")
-            self._model = None
+            self._client = None
     
     def _switch_to_fallback_model(self) -> bool:
         """
@@ -631,15 +621,10 @@ class GeminiAnalyzer:
             是否成功切换
         """
         try:
-            import google.generativeai as genai
             config = get_config()
             fallback_model = config.gemini_model_fallback
             
             logger.warning(f"[LLM] 切换到备选模型: {fallback_model}")
-            self._model = genai.GenerativeModel(
-                model_name=fallback_model,
-                system_instruction=self.SYSTEM_PROMPT,
-            )
             self._current_model_name = fallback_model
             self._using_fallback = True
             logger.info(f"[LLM] 备选模型 {fallback_model} 初始化成功")
@@ -650,7 +635,7 @@ class GeminiAnalyzer:
     
     def is_available(self) -> bool:
         """检查分析器是否可用"""
-        return self._model is not None or self._openai_client is not None
+        return self._client is not None or self._openai_client is not None
     
     def _call_openai_api(self, prompt: str, generation_config: dict) -> str:
         """
@@ -742,10 +727,10 @@ class GeminiAnalyzer:
                     logger.info(f"[Gemini] 第 {attempt + 1} 次重试，等待 {delay:.1f} 秒...")
                     time.sleep(delay)
                 
-                response = self._model.generate_content(
-                    prompt,
-                    generation_config=generation_config,
-                    request_options={"timeout": 180}
+                response = self._client.models.generate_content(
+                    model=self._current_model_name,
+                    contents=prompt,
+                    config={"system_instruction": self.SYSTEM_PROMPT} if hasattr(self, 'SYSTEM_PROMPT') else {},
                 )
                 
                 if response and response.text:
@@ -856,11 +841,7 @@ class GeminiAnalyzer:
             prompt = self._format_prompt(context, name, news_context)
             
             # 获取模型名称
-            model_name = getattr(self, '_current_model_name', None)
-            if not model_name:
-                model_name = getattr(self._model, '_model_name', 'unknown')
-                if hasattr(self._model, 'model_name'):
-                    model_name = self._model.model_name
+            model_name = getattr(self, '_current_model_name', 'unknown')
             
             logger.info(f"========== AI 分析 {name}({code}) ==========")
             logger.info(f"[LLM配置] 模型: {model_name}")
